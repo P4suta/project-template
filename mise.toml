@@ -24,3 +24,10 @@ actionlint                    = "latest"
 
 # The engine is a Rust binary; we build it from source on demand.
 rust = "1.95.0"
+
+# Cargo plugins used by `just test` / `just audit` / `just coverage`.
+# These resolve to `cargo install` builds; the first `mise install`
+# pays the build cost once and caches the binary thereafter.
+"cargo:cargo-nextest"  = "latest"
+"cargo:cargo-deny"     = "latest"
+"cargo:cargo-llvm-cov" = "latest"

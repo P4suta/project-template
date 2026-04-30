@@ -104,11 +104,16 @@ lint: fmt-check clippy typos actionlint yamllint markdownlint strict-code
 # Test, coverage, audit
 # ---------------------------------------------------------------------------
 
+# `cargo nextest` / `cargo deny` / `cargo llvm-cov` are mise-managed
+# cargo plugins. Lefthook hooks spawn under `/bin/sh` whose PATH
+# can lag behind a freshly-installed mise tool, so route the
+# invocations through `mise exec` for deterministic resolution.
+
 test:
-    cargo nextest run --manifest-path {{ENGINE_MANIFEST}}
+    mise exec -- cargo nextest run --manifest-path {{ENGINE_MANIFEST}}
 
 test-property:
-    cargo nextest run --manifest-path {{ENGINE_MANIFEST}} \
+    mise exec -- cargo nextest run --manifest-path {{ENGINE_MANIFEST}} \
         --filter-expr 'test(/property_/)' \
         --no-capture
 
@@ -120,13 +125,13 @@ test-property:
 COVERAGE_FLOOR := "94"
 
 coverage:
-    cargo llvm-cov --manifest-path {{ENGINE_MANIFEST}} \
+    mise exec -- cargo llvm-cov --manifest-path {{ENGINE_MANIFEST}} \
         --ignore-filename-regex 'src/main\.rs' \
         --fail-under-regions {{COVERAGE_FLOOR}} \
         --summary-only
 
 audit:
-    cargo deny --manifest-path {{ENGINE_MANIFEST}} check
+    mise exec -- cargo deny --manifest-path {{ENGINE_MANIFEST}} check
 
 # Engine-side template-self-CI: manifest + DAG soundness over every layer.
 verify-template: engine-build
