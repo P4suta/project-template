@@ -25,6 +25,11 @@ pre-commit:
       run: just actionlint
     yamllint:
       glob: "**/*.{yml,yaml}"
+      # Gate on yamllint being installed: it is a Python tool that
+      # contributors install through their system package manager
+      # (see mise.toml's note). The hook silently no-ops if absent
+      # rather than blocking commits — `just yamllint` itself prints
+      # a one-line installation hint.
       run: just yamllint
     markdownlint:
       glob: "**/*.md"
@@ -35,7 +40,11 @@ pre-commit:
 commit-msg:
   commands:
     conventional:
-      run: committed --commit-file {1}
+      # `committed` is a mise-managed binary. Lefthook spawns hooks
+      # under `/bin/sh` whose PATH doesn't always reflect a freshly-
+      # installed mise tool, so route through `mise exec` to resolve
+      # the binary from this project's `mise.toml`.
+      run: mise exec -- committed --commit-file {1}
 
 pre-push:
   parallel: true

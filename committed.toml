@@ -1,14 +1,36 @@
-# Configuration for `committed` (https://github.com/crate-ci/committed),
-# the Conventional Commits linter used by the commit-msg lefthook hook
-# and by CI on PR titles.
+# `committed` (https://github.com/crate-ci/committed) — Conventional
+# Commits linter used by the commit-msg lefthook hook and by CI on
+# PR titles.
+#
+# Schema reference: `committed --dump-config -` prints the active
+# configuration (snake_case keys, boolean toggles).
 
 style = "conventional"
-subject-capitalization = "lower"
-subject-not-punctuated = true
-imperative-subject = true
-no-fixup = true
-no-wip = true
-allowed-types = [
+
+# Subjects: lowercase first char, imperative voice, no trailing
+# punctuation. Matches the de-facto Conventional Commits convention
+# (`fix: add feature`, not `Fix: Added the feature.`).
+subject_capitalized   = false
+subject_not_punctuated = true
+imperative_subject     = true
+
+# 50/72 split is the long-standing Linux-kernel rule for legible
+# `git log --oneline` columns.
+subject_length    = 50
+line_length       = 72
+hard_line_length  = 0
+
+# Reject WIP / fixup commits — they belong on the work-tree, not in
+# the merged history.
+no_fixup = true
+no_wip   = true
+
+# Permit merge commits (default true). Squash merges look like merges
+# to committed but their subject is the PR title and we want to lint
+# that.
+merge_commit = true
+
+allowed_types = [
   "feat",
   "fix",
   "docs",
@@ -21,3 +43,4 @@ allowed-types = [
   "chore",
   "revert",
 ]
+allowed_scopes = []

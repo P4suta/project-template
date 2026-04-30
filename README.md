@@ -40,7 +40,7 @@ runs `tmpl apply` against the layers you select. Both paths invoke the same
 ## Layer catalogue
 
 | Layer | Provides | Requires | Conflicts | Purpose |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `core` | `licensing`, `meta-files`, `github-issue-templates` | — | — | LICENSE-{APACHE,MIT} / NOTICE / .editorconfig / .gitattributes / .gitignore / README skeleton / CHANGELOG / CONTRIBUTING / CODE_OF_CONDUCT / SECURITY / mise.toml / GitHub issue + PR templates / CODEOWNERS |
 | `typos` | `text-lint` | — | — | `_typos.toml` + the `typos` lint pass |
 | `lefthook` | `git-hooks` | — | — | `lefthook.yml` (generic baseline; language overlays supersede) |
@@ -57,23 +57,9 @@ apply a selection that contains an unsatisfied requirement, a duplicated
 capability, or a cycle in the requirements graph; these failures show up
 before any file is written.
 
-## `tmpl` commands
-
-```text
-tmpl apply --layers <list>     Initial application of a layer set
-tmpl add <layer>               Apply an additional layer (3-way-merges over edits)
-tmpl remove <layer>            Revert a layer (preserves your additions)
-tmpl status                    Applied vs unapplied layers + drift report
-tmpl verify                    Manifest + DAG soundness check (used in CI)
-tmpl seal                      Delete .template/ and graduate from the engine
-tmpl new gh:<owner>/<repo> <dest>   Generate without using the GitHub UI
-```
-
-Run `tmpl --help` after building the engine to see the full surface.
-
 ## Repository layout
 
-```
+```text
 .template/
   manifest.toml            Variable definitions and layer registry
   schema.json              Manifest JSON Schema (validated on load)
@@ -97,7 +83,7 @@ are free to relicense your own derived projects.
 ## `tmpl` commands
 
 | Command | Behaviour |
-|---|---|
+| --- | --- |
 | `tmpl apply --layers <list> --project-name … --project-owner …` | Render and write the layer set; record state |
 | `tmpl add <layer> [--force] --project-* …` | Drift-check existing layers, then re-apply with the extended selection; `--force` overrides drift |
 | `tmpl remove <layer> [--force]` | Drift-check the layer's files, delete them, prune empty parents, recompute Merkle root |

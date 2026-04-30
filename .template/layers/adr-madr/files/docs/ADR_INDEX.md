@@ -5,8 +5,8 @@ Architecture Decision Records. Each file documents one decision; once
 accepted an ADR is never edited — it is *superseded* by a later ADR
 that links back.
 
-| ADR | Title | Status |
-|-----|-------|--------|
+| ADR                                                 | Title                         | Status   |
+| --------------------------------------------------- | ----------------------------- | -------- |
 | [0001](./adr/0001-record-architecture-decisions.md) | Record architecture decisions | accepted |
 
 ## Authoring a new ADR

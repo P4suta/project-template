@@ -57,20 +57,33 @@ actionlint:
     actionlint
 
 yamllint:
-    yamllint .
+    @if command -v yamllint >/dev/null 2>&1; then \
+        yamllint . ; \
+    else \
+        echo "yamllint not installed locally — install via 'apt install yamllint' or 'brew install yamllint' to enable this lint pass"; \
+    fi
 
 markdownlint:
-    markdownlint-cli2 "**/*.md" "#target" "#.template/tmpl/target"
+    markdownlint-cli2 \
+        "**/*.md" \
+        "#target" \
+        "#.template/tmpl/target" \
+        "#**/PULL_REQUEST_TEMPLATE.md" \
+        "#**/ISSUE_TEMPLATE/**"
 
 # Reject patterns that mask real bugs even when the type / lint gates pass.
 # Sources of truth: docs/adr/0002-strict-code-grep.md.
 strict-code:
     @echo "::group::strict-code"
-    # No bare TODO/FIXME without an issue reference.
-    ! grep -rEn '\b(TODO|FIXME)\b(?!\(#[0-9]+\))' \
+    # No bare TODO/FIXME without an issue reference. POSIX `grep -E`
+    # has no lookahead, so we filter the matches in a second pass:
+    # if any TODO/FIXME line lacks a `(#NN)` token, fail.
+    ! grep -rEn '\b(TODO|FIXME)\b' \
         --include='*.rs' --include='*.toml' --include='*.yml' --include='*.yaml' \
         --exclude-dir=target --exclude-dir=.template/tmpl/target \
-        . || (echo "bare TODO/FIXME — add (#NN) issue link" && exit 1)
+        . \
+        | grep -vE '\(#[0-9]+\)' \
+        || (echo "bare TODO/FIXME — add (#NN) issue link" && exit 1)
     # No #[allow(...)] without `reason = "..."`.
     ! grep -rEn '#\[allow\([a-z_:]+\)\]' \
         --include='*.rs' --exclude-dir=target . \

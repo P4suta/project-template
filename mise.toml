@@ -13,7 +13,12 @@ just                          = "latest"
 lefthook                      = "latest"
 "github:crate-ci/typos"      = "latest"
 actionlint                    = "latest"
-yamllint                      = "latest"
+# `yamllint` is a Python tool. mise resolves it to `pipx:yamllint`,
+# which requires `pipx` on PATH; rather than couple the dev setup to
+# a Python toolchain that isn't otherwise needed, install it via the
+# system package manager when contributors want the YAML lint pass:
+#   apt install yamllint   (Debian/Ubuntu)
+#   brew install yamllint  (macOS)
 "npm:markdownlint-cli2"      = "latest"
 "github:crate-ci/committed"  = "latest"
 
