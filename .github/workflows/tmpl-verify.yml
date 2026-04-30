@@ -70,9 +70,9 @@ jobs:
       - run: cargo nextest run --manifest-path .template/tmpl/Cargo.toml
 
   coverage:
-    # Day-1 floor: 92 %. Long-term target: 96 % (afm-tier). Mirror
-    # the value bumped in the Justfile.
-    name: cargo llvm-cov (regions ≥ 92 %, target 96 %)
+    # Floor: 94 %. Long-term target: 96 % (afm-tier). Mirror the value
+    # bumped in the Justfile.
+    name: cargo llvm-cov (regions ≥ 94 %, target 96 %)
     runs-on: ubuntu-latest
     needs: test
     steps:
@@ -85,11 +85,11 @@ jobs:
 
       - uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: cargo llvm-cov --fail-under-regions 92
+      - name: cargo llvm-cov --fail-under-regions 94
         run: |
           cargo llvm-cov --manifest-path .template/tmpl/Cargo.toml \
             --ignore-filename-regex 'src/main\.rs' \
-            --fail-under-regions 92 \
+            --fail-under-regions 94 \
             --summary-only
 
   verify:

@@ -99,11 +99,12 @@ test-property:
         --filter-expr 'test(/property_/)' \
         --no-capture
 
-# Region-coverage gate. Day-1 floor is 92 %; the long-term target
-# matches afm at 96 %. Ratchet up by raising COVERAGE_FLOOR as test
-# surface grows (boon validation paths, filesystem error injection,
-# 3-way merge fault paths). Never lower.
-COVERAGE_FLOOR := "92"
+# Region-coverage gate. Floor is 94 % (Phase C achieved 95.16 % with
+# headroom); the long-term target matches afm at 96 %. Ratchet up by
+# raising `COVERAGE_FLOOR` as test surface grows — most remaining gaps
+# are filesystem fault-injection paths and boon validator inner error
+# branches. Never lower.
+COVERAGE_FLOOR := "94"
 
 coverage:
     cargo llvm-cov --manifest-path {{ENGINE_MANIFEST}} \

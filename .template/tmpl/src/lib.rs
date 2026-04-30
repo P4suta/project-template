@@ -37,4 +37,8 @@ pub use dag::{ConflictReport, ResolvePlan};
 pub use error::TmplError;
 pub use layer::{Capability, Layer, LayerMeta, LayerName, Patch, RenderedFile, RenderedPath};
 pub use manifest::Manifest;
+pub use state::{
+    AppliedEntry, AppliedFileEntry, ContentHash, DriftReport, State, applied_file_entries,
+    detect_drift, hash_content,
+};
 pub use template::{Applied, Loaded, Rendered, Resolved, Template, Validated};

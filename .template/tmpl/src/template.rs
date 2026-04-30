@@ -24,7 +24,9 @@ use crate::error::TmplError;
 use crate::layer::{Layer, LayerMeta, LayerName, Patch};
 use crate::manifest::Manifest;
 use crate::render::FilesystemLayer;
-use crate::state::{AppliedEntry, ContentHash, State, hash_patch, merkle_root};
+use crate::state::{
+    AppliedEntry, ContentHash, State, applied_file_entries, hash_patch, merkle_root,
+};
 
 /// Sealed state marker — all template states implement this.
 pub trait TemplateState: sealed::Sealed {}
@@ -312,6 +314,7 @@ impl Template<Rendered> {
                 AppliedEntry {
                     content_hash: h,
                     applied_at: SmolStr::new(&now),
+                    files: applied_file_entries(patch),
                 },
             );
         }
@@ -465,6 +468,72 @@ description = "core layer"
         let err =
             Template::<Loaded>::load(template_dir.path()).expect_err("missing manifest must error");
         assert!(matches!(err, TmplError::Io { .. }));
+    }
+
+    #[test]
+    fn load_propagates_filesystem_layer_failure() {
+        // A layer subdirectory exists but has no `layer.toml` —
+        // `FilesystemLayer::load` fails inside `Template::<Loaded>::load`'s
+        // iteration loop. Confirm the error bubbles up.
+        let template_dir = tempfile::tempdir().expect("tempdir");
+        fs::create_dir_all(template_dir.path().join("layers/broken")).expect("mkdir broken layer");
+        fs::write(
+            template_dir.path().join("manifest.toml"),
+            "schema_version = 1\nengine_version = \"0.1.0\"\n",
+        )
+        .expect("write manifest");
+        let err = Template::<Loaded>::load(template_dir.path())
+            .expect_err("missing layer.toml must surface");
+        assert!(matches!(err, TmplError::Io { .. }));
+    }
+
+    #[test]
+    fn apply_surfaces_io_error_when_destination_is_a_regular_file() {
+        // `apply` joins each rendered file's relative path under
+        // `dest`. If `dest` itself is a regular file rather than a
+        // directory, the very first `fs::create_dir_all(parent)`
+        // call fails — surface the error rather than panicking.
+        let template_dir = tempfile::tempdir().expect("tempdir");
+        write_minimal_template(template_dir.path());
+
+        let scratch = tempfile::tempdir().expect("tempdir");
+        let blocker = scratch.path().join("blocker");
+        fs::write(&blocker, "I am a regular file, not a directory.").expect("write blocker");
+
+        let err = Template::<Loaded>::load(template_dir.path())
+            .expect("load")
+            .validate()
+            .expect("validate")
+            .resolve(&[], Context::for_test("acme", "P4suta"))
+            .expect("resolve")
+            .render()
+            .expect("render")
+            .apply(&blocker)
+            .expect_err("apply onto a regular file must error");
+        assert!(matches!(err, TmplError::Io { .. }));
+    }
+
+    #[test]
+    fn load_skips_non_directory_entries_in_layers_dir() {
+        // A stray regular file under layers/ should be skipped
+        // silently — only directories are interpreted as layers.
+        let template_dir = tempfile::tempdir().expect("tempdir");
+        fs::create_dir_all(template_dir.path().join("layers/core/files")).expect("mkdir");
+        fs::write(
+            template_dir.path().join("manifest.toml"),
+            "schema_version = 1\nengine_version = \"0.1.0\"\ndefault_selection = [\"core\"]\n",
+        )
+        .expect("write manifest");
+        fs::write(
+            template_dir.path().join("layers/core/layer.toml"),
+            "name = \"core\"\ndescription = \"x\"\n",
+        )
+        .expect("write layer.toml");
+        // Stray file at layers/README.md — must be skipped.
+        fs::write(template_dir.path().join("layers/README.md"), "# layers\n").expect("write");
+
+        let loaded = Template::<Loaded>::load(template_dir.path()).expect("load");
+        assert_eq!(loaded.inner.layers.len(), 1);
     }
 
     #[test]

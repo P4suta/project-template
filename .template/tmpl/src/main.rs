@@ -4,9 +4,11 @@
 #![deny(missing_docs)]
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
-use std::process::ExitCode;
+use std::process::{Command as ProcessCommand, ExitCode};
 
 use clap::{Parser, Subcommand};
 use miette::IntoDiagnostic;
@@ -14,7 +16,7 @@ use miette::IntoDiagnostic;
 use tmpl::Context;
 use tmpl::ctx::ProjectInfo;
 use tmpl::layer::LayerName;
-use tmpl::state::State;
+use tmpl::state::{ContentHash, DriftReport, State, detect_drift, merkle_root};
 use tmpl::template::{Loaded, Template};
 
 /// CLI surface.
@@ -61,8 +63,8 @@ enum Command {
     },
     /// Add a single layer on top of an already-applied state. Re-runs
     /// the resolution + render pipeline with the existing layer set
-    /// extended by the new layer; existing files are re-rendered as
-    /// well to keep them coherent with the updated capability graph.
+    /// extended by the new layer; existing files are re-rendered so
+    /// they stay coherent with the updated capability graph.
     Add {
         /// Layer to add.
         layer: String,
@@ -75,12 +77,21 @@ enum Command {
         /// Optional one-line description.
         #[arg(long, default_value = "")]
         project_description: String,
+        /// Overwrite locally-edited files. Without `--force`, the
+        /// command refuses to proceed if any previously-rendered file
+        /// has been modified on disk.
+        #[arg(long, default_value_t = false)]
+        force: bool,
     },
-    /// Remove an applied layer. Reserved for Phase C; the structured
-    /// error on invocation points at the workaround.
+    /// Remove an applied layer. Deletes the files the layer
+    /// contributed and updates state. Refuses if any of those files
+    /// have been modified locally; pass `--force` to delete anyway.
     Remove {
         /// Layer to remove.
         layer: String,
+        /// Delete files even if they have been modified locally.
+        #[arg(long, default_value_t = false)]
+        force: bool,
     },
     /// Run manifest + layer DAG soundness checks. Used by the engine's
     /// own CI as well as `just verify-template`.
@@ -90,15 +101,17 @@ enum Command {
     /// Delete `.template/` and graduate from the engine. Idempotent —
     /// re-running on a sealed repo is a structured no-op.
     Seal,
-    /// Generate a new project from a remote template without using
-    /// the GitHub UI. Reserved for Phase C; the structured error on
-    /// invocation points at the workaround (`gh repo create
-    /// --template` + `.template/bootstrap.sh`).
+    /// Generate a new project from a remote GitHub template via the
+    /// `gh` CLI. Equivalent to `gh repo create --template owner/repo
+    /// dest --clone` plus an automatic `bash .template/bootstrap.sh`.
     New {
         /// Source template, e.g. `gh:P4suta/project-template`.
         source: String,
-        /// Destination directory.
-        dest: PathBuf,
+        /// Destination repository name (becomes the local directory).
+        dest: String,
+        /// Create as a public repo (default: private).
+        #[arg(long, default_value_t = false)]
+        public: bool,
     },
 }
 
@@ -111,13 +124,13 @@ struct ApplyInvocation<'a> {
     project: ProjectFacts<'a>,
 }
 
-/// Bundled inputs for [`add`]. Same shape as `ApplyInvocation` but with
-/// a single layer string.
+/// Bundled inputs for [`add`].
 struct AddInvocation<'a> {
     template_root: &'a Path,
     dest: &'a Path,
     new_layer: &'a str,
     project: ProjectFacts<'a>,
+    force: bool,
 }
 
 /// Repository facts used to build the [`Context`]. Bundled to keep
@@ -159,6 +172,7 @@ fn run() -> miette::Result<()> {
             project_name,
             project_owner,
             project_description,
+            force,
         } => add(&AddInvocation {
             template_root: &cli.template_root,
             dest: &cli.dest,
@@ -168,12 +182,17 @@ fn run() -> miette::Result<()> {
                 owner: &project_owner,
                 description: &project_description,
             },
+            force,
         }),
-        Command::Remove { layer } => remove(&layer),
+        Command::Remove { layer, force } => remove(&cli.dest, &layer, force),
         Command::Verify => verify(&cli.template_root),
         Command::Status => status(&cli.dest),
         Command::Seal => seal(&cli.template_root),
-        Command::New { source, dest } => new_command(&source, &dest),
+        Command::New {
+            source,
+            dest,
+            public,
+        } => new_command(&source, &dest, public),
     }
 }
 
@@ -206,10 +225,16 @@ fn add(invocation: &AddInvocation<'_>) -> miette::Result<()> {
         return Ok(());
     }
 
-    // Extend the previously-applied selection with the new layer and
-    // re-run the full pipeline. The DAG resolver re-orders the
-    // combined set; render and apply update both the new layer and
-    // any existing layers whose evaluation context depends on it.
+    // Drift check: every previously-applied layer's files must still
+    // match the recorded hashes, otherwise we'd silently overwrite
+    // user edits when re-applying.
+    if !invocation.force {
+        let drift = collect_drift(invocation.dest, &existing).into_diagnostic()?;
+        if !drift.is_empty() {
+            return Err(drift_error(&drift, "tmpl::add::drift"));
+        }
+    }
+
     let mut selection: Vec<LayerName> = existing.applied.keys().cloned().collect();
     selection.push(new_layer);
 
@@ -229,20 +254,183 @@ fn add(invocation: &AddInvocation<'_>) -> miette::Result<()> {
     Ok(())
 }
 
-fn remove(_layer: &str) -> miette::Result<()> {
-    Err(miette::miette!(
-        code = "tmpl::remove::phase-c",
-        help = "Workaround: invoke `tmpl apply --layers <set without this layer> --project-* …` to re-render the destination with a smaller selection. Note that orphaned files are not auto-deleted by that path; clean them up manually for now.",
-        "tmpl remove is reserved for Phase C and is not yet implemented",
-    ))
+fn remove(dest: &Path, layer: &str, force: bool) -> miette::Result<()> {
+    let state_path = dest.join(".template").join("state.toml");
+    let mut state = State::load(&state_path).into_diagnostic()?;
+
+    let target = LayerName::new(layer)
+        .map_err(|e| miette::miette!(code = "tmpl::cli", "invalid layer name: {e}"))?;
+    let entry = state.applied.get(&target).ok_or_else(|| {
+        miette::miette!(
+            code = "tmpl::remove::not-applied",
+            "layer '{target}' is not in the applied state — nothing to remove",
+        )
+    })?;
+
+    if !force {
+        let report = detect_drift(dest, entry).into_diagnostic()?;
+        if !report.modified.is_empty() {
+            return Err(drift_error(
+                &[(target.clone(), report)],
+                "tmpl::remove::drift",
+            ));
+        }
+    }
+
+    // Snapshot the entry's file list before mutating state — the
+    // `entry` borrow is invalidated by `state.applied.remove`.
+    let entry_clone = entry.clone();
+    state.applied.remove(&target);
+
+    // Delete files on disk. Missing files are tolerated (deletion is
+    // an idempotent operation) but I/O failures are not.
+    let mut removed_count: usize = 0;
+    for f in &entry_clone.files {
+        let abs = dest.join(f.path.as_path().as_str());
+        match fs::remove_file(&abs) {
+            Ok(()) => removed_count += 1,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => {
+                return Err(miette::miette!(
+                    code = "tmpl::remove::io",
+                    "failed to delete {}: {}",
+                    abs.display(),
+                    e,
+                ));
+            }
+        }
+        prune_empty_parents(dest, &abs);
+    }
+
+    // Recompute the Merkle root over the surviving entries.
+    let mut hashes: BTreeMap<LayerName, ContentHash> = BTreeMap::new();
+    for (name, entry) in &state.applied {
+        hashes.insert(name.clone(), entry.content_hash);
+    }
+    state.merkle_root = merkle_root(&hashes);
+
+    if state.applied.is_empty() {
+        // No layers left — remove state.toml itself, leaving an empty
+        // `.template/` directory if it was used.
+        if state_path.exists() {
+            fs::remove_file(&state_path).map_err(|e| {
+                miette::miette!(
+                    code = "tmpl::remove::io",
+                    "failed to clear {}: {}",
+                    state_path.display(),
+                    e,
+                )
+            })?;
+        }
+    } else {
+        state.save(&state_path).into_diagnostic()?;
+    }
+
+    println!(
+        "Removed layer '{target}' ({removed_count} file{plural} deleted, {survivors} layer{splural} remaining).",
+        plural = if removed_count == 1 { "" } else { "s" },
+        survivors = state.applied.len(),
+        splural = if state.applied.len() == 1 { "" } else { "s" },
+    );
+    Ok(())
 }
 
-fn new_command(_source: &str, _dest: &Path) -> miette::Result<()> {
-    Err(miette::miette!(
-        code = "tmpl::new::phase-c",
-        help = "Workaround: `gh repo create --template P4suta/project-template <name>` to create the destination, `gh repo clone <name>` to fetch it, then `bash .template/bootstrap.sh` to run apply.",
-        "tmpl new is reserved for Phase C and is not yet implemented",
-    ))
+/// Walk up the parent chain of `start` deleting empty directories
+/// until a non-empty directory or `dest` itself is reached. Errors are
+/// silently swallowed: best-effort cleanup, not authoritative.
+fn prune_empty_parents(dest: &Path, start: &Path) {
+    let mut current = start.parent();
+    while let Some(dir) = current {
+        if dir == dest || !dir.starts_with(dest) {
+            return;
+        }
+        // Read the directory; bail if anything goes wrong.
+        let Ok(mut iter) = fs::read_dir(dir) else {
+            return;
+        };
+        if iter.next().is_some() {
+            return;
+        }
+        if fs::remove_dir(dir).is_err() {
+            return;
+        }
+        current = dir.parent();
+    }
+}
+
+fn new_command(source: &str, dest: &str, public: bool) -> miette::Result<()> {
+    let owner_repo = source.strip_prefix("gh:").ok_or_else(|| {
+        miette::miette!(
+            code = "tmpl::new::source-format",
+            help = "Sources must look like `gh:owner/repo` (the GitHub CLI is the only supported transport in Phase C).",
+            "unsupported source: {source:?}",
+        )
+    })?;
+    if owner_repo.split('/').count() != 2 {
+        return Err(miette::miette!(
+            code = "tmpl::new::source-format",
+            "expected `gh:owner/repo`, got `gh:{owner_repo}`",
+        ));
+    }
+
+    if which::which("gh").is_err() {
+        return Err(miette::miette!(
+            code = "tmpl::new::gh-missing",
+            help = "Install the GitHub CLI: https://cli.github.com/",
+            "the `gh` CLI is required for `tmpl new` but was not found on PATH",
+        ));
+    }
+
+    let visibility_flag = if public { "--public" } else { "--private" };
+
+    println!("Creating {dest} from gh:{owner_repo} via gh repo create…");
+    let status = ProcessCommand::new("gh")
+        .args([
+            "repo",
+            "create",
+            dest,
+            "--template",
+            owner_repo,
+            visibility_flag,
+            "--clone",
+        ])
+        .status()
+        .map_err(|e| miette::miette!(code = "tmpl::new::spawn", "failed to spawn gh: {e}",))?;
+    if !status.success() {
+        return Err(miette::miette!(
+            code = "tmpl::new::gh-failed",
+            "gh repo create exited with {status}; the GitHub CLI's stderr above has the details",
+        ));
+    }
+
+    let bootstrap = PathBuf::from(dest).join(".template/bootstrap.sh");
+    if !bootstrap.exists() {
+        println!(
+            "Note: {} was not present in the cloned template — skip bootstrap step.",
+            bootstrap.display()
+        );
+        return Ok(());
+    }
+
+    println!("Running bootstrap.sh inside {dest}…");
+    let status = ProcessCommand::new("bash")
+        .arg(".template/bootstrap.sh")
+        .current_dir(dest)
+        .status()
+        .map_err(|e| {
+            miette::miette!(
+                code = "tmpl::new::bootstrap-spawn",
+                "failed to spawn bash: {e}",
+            )
+        })?;
+    if !status.success() {
+        return Err(miette::miette!(
+            code = "tmpl::new::bootstrap-failed",
+            "bootstrap.sh exited with {status} inside {dest}",
+        ));
+    }
+    println!("Done. The new repository is ready in ./{dest}.");
+    Ok(())
 }
 
 fn verify(template_root: &Path) -> miette::Result<()> {
@@ -261,10 +449,12 @@ fn status(dest: &Path) -> miette::Result<()> {
         println!("merkle_root = {}", state.merkle_root.to_hex());
         for (name, entry) in &state.applied {
             println!(
-                "  {name:24}  {hash}  {applied_at}",
+                "  {name:24}  {hash}  {applied_at}  ({nfiles} file{plural})",
                 name = name.as_str(),
                 hash = entry.content_hash.to_hex(),
                 applied_at = entry.applied_at,
+                nfiles = entry.files.len(),
+                plural = if entry.files.len() == 1 { "" } else { "s" },
             );
         }
     }
@@ -289,6 +479,49 @@ fn seal(template_root: &Path) -> miette::Result<()> {
         template_root.display()
     );
     Ok(())
+}
+
+/// Iterate every applied layer and collect drift reports for the ones
+/// that have any modified or missing files.
+fn collect_drift(
+    dest: &Path,
+    state: &State,
+) -> Result<Vec<(LayerName, DriftReport)>, tmpl::TmplError> {
+    let mut out = Vec::new();
+    for (name, entry) in &state.applied {
+        let report = detect_drift(dest, entry)?;
+        if !report.is_clean() {
+            out.push((name.clone(), report));
+        }
+    }
+    Ok(out)
+}
+
+/// Render a `tmpl::add` / `tmpl::remove` drift conflict as a
+/// structured `miette` error.
+fn drift_error(reports: &[(LayerName, DriftReport)], code: &'static str) -> miette::Report {
+    let mut details = String::new();
+    for (layer, report) in reports {
+        // `Write` is brought into scope as `_` at file top so the
+        // `writeln!` calls resolve without polluting the public surface.
+        // Writing to a `String` is infallible — surface the
+        // theoretical error explicitly so a future API change cannot
+        // hide a regression.
+        writeln!(details, "layer '{layer}':").expect("write to String never fails");
+        for p in &report.modified {
+            writeln!(details, "    modified: {}", p.as_path())
+                .expect("write to String never fails");
+        }
+        for p in &report.missing {
+            writeln!(details, "    missing:  {}", p.as_path())
+                .expect("write to String never fails");
+        }
+    }
+    miette::miette!(
+        code = code,
+        help = "Inspect the listed files; resolve manually then re-run, or pass `--force` to overwrite local changes.",
+        "drift detected against the recorded state:\n{details}",
+    )
 }
 
 fn parse_layer_names(raw: &[String]) -> miette::Result<Vec<LayerName>> {

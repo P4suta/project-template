@@ -62,6 +62,10 @@ smol_str = { version = "0.3", features = ["serde"] }
 # only for the RFC 3339 timestamp embedded in `state.toml`.
 jiff = { version = "0.2", default-features = false, features = ["std"] }
 
+# `which` provides cross-platform PATH lookup for the binaries that
+# `tmpl new` shells out to (`gh`, `bash`).
+which = "8.0"
+
 # ---------------------------------------------------------------------------
 # Test / property / fuzz tooling
 # ---------------------------------------------------------------------------

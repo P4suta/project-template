@@ -324,6 +324,32 @@ mod tests {
     }
 
     #[test]
+    fn fs_layer_load_surfaces_io_error_when_files_root_is_a_regular_file() {
+        // `collect_files` calls `fs::read_dir(dir)`. If the path that
+        // claims to be `files/` is actually a regular file (someone
+        // committed `files` instead of `files/`), the read fails and
+        // we want the structured `TmplError::Io`.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let layer_dir = dir.path().join("malformed");
+        fs::create_dir_all(&layer_dir).expect("mkdir");
+        fs::write(
+            layer_dir.join("layer.toml"),
+            "name = \"malformed\"\ndescription = \"x\"\n",
+        )
+        .expect("write layer.toml");
+        // `files` is a regular file, not a directory.
+        fs::write(
+            layer_dir.join("files"),
+            "I should be a directory but I am not.",
+        )
+        .expect("write files-as-file");
+
+        let err = FilesystemLayer::load(&layer_dir)
+            .expect_err("read_dir on a regular file must surface as Io");
+        assert!(matches!(err, TmplError::Io { .. }));
+    }
+
+    #[test]
     fn fs_layer_load_handles_layer_with_no_files_dir() {
         // A layer with metadata but no files/ subdir should load to an
         // empty patch — this is the "metadata-only" shape that early
@@ -400,6 +426,49 @@ mod tests {
             .render(&Context::for_test("p", "o"))
             .expect_err("must surface render error");
         assert!(matches!(err, TmplError::Render { .. }));
+    }
+
+    #[test]
+    fn fs_layer_load_surfaces_io_error_for_unreadable_template_file() {
+        // chmod 0000 a file inside files/ — `read_to_string` then
+        // fails with PermissionDenied, surfacing as `TmplError::Io`.
+        // Skip on root (where chmod 0000 doesn't actually deny reads).
+        #[cfg(unix)]
+        if !is_running_as_root() {
+            use std::os::unix::fs::PermissionsExt;
+            let dir = tempfile::tempdir().expect("tempdir");
+            let layer_dir = dir.path().join("locked");
+            fs::create_dir_all(layer_dir.join("files")).expect("mkdir");
+            fs::write(
+                layer_dir.join("layer.toml"),
+                "name = \"locked\"\ndescription = \"x\"\n",
+            )
+            .expect("write layer.toml");
+            let target = layer_dir.join("files/SECRET");
+            fs::write(&target, "private\n").expect("write secret");
+            fs::set_permissions(&target, fs::Permissions::from_mode(0o000)).expect("chmod");
+
+            let err = FilesystemLayer::load(&layer_dir)
+                .expect_err("unreadable template file must surface as Io");
+            assert!(matches!(err, TmplError::Io { .. }));
+
+            // Restore permissions so tempdir cleanup can delete it.
+            fs::set_permissions(&target, fs::Permissions::from_mode(0o644)).ok();
+        }
+    }
+
+    #[cfg(unix)]
+    fn is_running_as_root() -> bool {
+        // Avoid pulling in the `libc` crate just for a uid check;
+        // read `/proc/self/status` instead. Returns false on
+        // non-Linux POSIX (no procfs) — we accept the false negative
+        // there because the test only matters on Linux CI.
+        fs::read_to_string("/proc/self/status").is_ok_and(|s| {
+            s.lines()
+                .find_map(|l| l.strip_prefix("Uid:"))
+                .and_then(|tail| tail.split_whitespace().next())
+                .is_some_and(|uid| uid == "0")
+        })
     }
 
     #[test]
