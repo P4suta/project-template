@@ -1,0 +1,173 @@
+[package]
+name          = "tmpl"
+version       = "0.1.0"
+edition       = "2024"
+rust-version  = "1.95.0"
+license       = "Apache-2.0 OR MIT"
+description   = "Layer-DAG template engine that drives project-template."
+repository    = "https://github.com/P4suta/project-template"
+homepage      = "https://github.com/P4suta/project-template"
+authors       = ["project-template contributors"]
+readme        = "README.md"
+keywords      = ["template", "scaffold", "dag", "layers"]
+categories    = ["development-tools", "command-line-utilities"]
+publish       = false
+
+[[bin]]
+name = "tmpl"
+path = "src/main.rs"
+
+[lib]
+name = "tmpl"
+path = "src/lib.rs"
+
+# ---------------------------------------------------------------------------
+# Dependencies — all versions verified against crates.io on 2026-04-30.
+# ---------------------------------------------------------------------------
+[dependencies]
+# CLI surface
+clap      = { version = "4.6", features = ["derive", "wrap_help", "env", "color", "cargo"] }
+
+# Diagnostics
+miette    = { version = "7.6", features = ["fancy"] }
+thiserror = "2.0"
+
+# Data
+serde      = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml_edit  = { version = "0.25", features = ["serde"] }
+
+# Template engine — minijinja (mitsuhiko, Jinja2-compatible, mainstream-2026).
+minijinja = { version = "2.19", features = ["loader", "loop_controls", "json"] }
+
+# DAG operations — used internally by `dag.rs` for Kahn / Tarjan over layer
+# graphs. We pick algorithms deliberately and keep the surface narrow; see
+# memory `feedback_competitive_rust_rigor.md`.
+petgraph = "0.8"
+
+# Cryptographic content addressing for the layer Merkle tree.
+blake3 = "1.8"
+
+# JSON Schema validation (draft 2020-12 first-class).
+boon = "0.6"
+
+# UTF-8 path newtype that the rest of the codebase uses for `RenderedPath`.
+camino = { version = "1.2", features = ["serde1"] }
+
+# Inline-optimised string newtype for `LayerName` / `Capability`.
+smol_str = { version = "0.3", features = ["serde"] }
+
+# Date / time formatting. `jiff` is the 2026 mainstream choice — small,
+# Temporal-flavoured, no `time`-/`chrono`-style historical baggage. Used
+# only for the RFC 3339 timestamp embedded in `state.toml`.
+jiff = { version = "0.2", default-features = false, features = ["std"] }
+
+# ---------------------------------------------------------------------------
+# Test / property / fuzz tooling
+# ---------------------------------------------------------------------------
+[dev-dependencies]
+insta             = { version = "1.47", features = ["yaml", "json", "filters", "toml"] }
+proptest          = "1.11"
+pretty_assertions = "1.4"
+tempfile          = "3.27"
+
+# ---------------------------------------------------------------------------
+# Lint policy — local crate analogue of afm's `[workspace.lints]`. Workspace
+# lints aren't available here (single-crate, deliberately self-contained at
+# `.template/tmpl/`), so we keep the same shape directly on the package.
+# ---------------------------------------------------------------------------
+[lints.rust]
+unsafe_code      = "forbid"
+non_ascii_idents = "deny"
+
+missing_debug_implementations = "warn"
+missing_copy_implementations  = "warn"
+trivial_casts                 = "warn"
+trivial_numeric_casts         = "warn"
+unused_import_braces          = "warn"
+unused_lifetimes              = "warn"
+unused_qualifications         = "warn"
+
+unreachable_pub                = "warn"
+single_use_lifetimes           = "warn"
+elided_lifetimes_in_paths      = "warn"
+redundant_lifetimes            = "warn"
+explicit_outlives_requirements = "warn"
+
+let_underscore_drop         = "warn"
+keyword_idents_2024         = "warn"
+variant_size_differences    = "warn"
+ambiguous_negative_literals = "warn"
+
+# Hard-fail on unreferenced items locally too — keeps stale scaffolding
+# from accumulating between commits.
+dead_code = "deny"
+
+rust_2024_compatibility = { level = "warn", priority = -1 }
+
+[lints.rustdoc]
+broken_intra_doc_links       = "deny"
+private_intra_doc_links      = "warn"
+invalid_codeblock_attributes = "warn"
+invalid_html_tags            = "warn"
+invalid_rust_codeblocks      = "warn"
+bare_urls                    = "warn"
+redundant_explicit_links     = "warn"
+unescaped_backticks          = "warn"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery  = { level = "warn", priority = -1 }
+cargo    = { level = "warn", priority = -1 }
+
+dbg_macro                  = "warn"
+todo                       = "warn"
+unimplemented              = "warn"
+clone_on_ref_ptr           = "warn"
+unnecessary_safety_comment = "warn"
+unnecessary_safety_doc     = "warn"
+missing_assert_message     = "warn"
+
+# Hand-picked restriction lints — see afm's clippy.toml for the rationale.
+str_to_string                   = "warn"
+absolute_paths                  = "warn"
+allow_attributes_without_reason = "warn"
+empty_structs_with_brackets     = "warn"
+if_then_some_else_none          = "warn"
+let_underscore_must_use         = "warn"
+mixed_read_write_in_expression  = "warn"
+rest_pat_in_fully_bound_structs = "warn"
+same_name_method                = "warn"
+semicolon_outside_block         = "warn"
+try_err                         = "warn"
+unneeded_field_pattern          = "warn"
+verbose_file_reads              = "warn"
+format_push_string              = "warn"
+unnecessary_self_imports        = "warn"
+assertions_on_result_states     = "warn"
+filetype_is_file                = "warn"
+rc_buffer                       = "warn"
+rc_mutex                        = "warn"
+lossy_float_literal             = "warn"
+suspicious_xor_used_as_pow      = "warn"
+
+# Carve-outs: each documented.
+module_name_repetitions = "allow" # `tmpl::tmpl_error` reads worse than fighting this
+multiple_crate_versions = "allow" # transitive collisions outside our control
+missing_const_for_fn    = "allow" # pre-1.0; revisit when API stabilises
+redundant_pub_crate     = "allow" # see afm's note: conflicts with rustc's `unreachable_pub`
+
+# ---------------------------------------------------------------------------
+# Profiles
+# ---------------------------------------------------------------------------
+[profile.release]
+lto           = "thin"
+codegen-units = 1
+strip         = "symbols"
+panic         = "abort"
+opt-level     = 3
+
+[profile.bench]
+inherits = "release"
+strip    = "none"
+debug    = 1

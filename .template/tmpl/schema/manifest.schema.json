@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/P4suta/project-template/schemas/manifest.schema.json",
+  "title": "tmpl manifest",
+  "description": "Schema for .template/manifest.toml — the registry of layers and the variables exposed to the render context.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "engine_version"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Bumped when this schema's shape changes."
+    },
+    "engine_version": {
+      "type": "string",
+      "description": "Engine version this manifest is known to be compatible with.",
+      "minLength": 1
+    },
+    "default_selection": {
+      "type": "array",
+      "default": [],
+      "description": "Layer names rendered when `tmpl apply` is invoked without --layers.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9-]+$"
+      },
+      "uniqueItems": true
+    },
+    "variables": {
+      "type": "array",
+      "default": [],
+      "description": "Variables exposed to the render context as `answers.<name>`.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "description", "type"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string",
+            "enum": ["string", "bool", "int", "list"]
+          },
+          "default": {
+            "description": "Default value, type-checked at render time."
+          },
+          "required": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      }
+    }
+  }
+}

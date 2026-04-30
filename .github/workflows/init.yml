@@ -1,0 +1,96 @@
+# Path A entry point: when a generated repository receives its first
+# push, build the `tmpl` engine inside Actions and apply the default
+# layer selection, committing the result as
+# `chore: initialize from template`.
+#
+# This workflow is intentionally a no-op on the project-template
+# repository itself — the `if:` guard on the job blocks execution
+# whenever `${{ github.event.repository.name }}` matches the template
+# repo's own name.
+
+name: Template initialization
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: template-initialization
+  cancel-in-progress: true
+
+jobs:
+  init:
+    name: Apply layers via tmpl
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.repository.name != 'project-template' &&
+      github.actor != 'github-actions[bot]'
+    steps:
+      - name: Check out the freshly templated repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Skip if .template/state.toml already exists
+        id: gate
+        run: |
+          if [ -f .template/state.toml ]; then
+            echo "applied=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::.template/state.toml already exists — initialization is a no-op."
+          else
+            echo "applied=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Rust toolchain pinned by .template/tmpl/rust-toolchain.toml
+        if: steps.gate.outputs.applied == 'false'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          components: rustfmt,clippy
+
+      - name: Cache the engine's cargo build
+        if: steps.gate.outputs.applied == 'false'
+        uses: actions/cache@v4
+        with:
+          path: |
+            .template/tmpl/target
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: tmpl-engine-${{ hashFiles('.template/tmpl/Cargo.lock', '.template/tmpl/Cargo.toml') }}
+
+      - name: Build tmpl
+        if: steps.gate.outputs.applied == 'false'
+        run: cargo build --release --manifest-path .template/tmpl/Cargo.toml
+
+      - name: Apply layers
+        if: steps.gate.outputs.applied == 'false'
+        env:
+          PROJECT_NAME: ${{ github.event.repository.name }}
+          PROJECT_OWNER: ${{ github.event.repository.owner.login }}
+          PROJECT_DESCRIPTION: ${{ github.event.repository.description }}
+        run: |
+          .template/tmpl/target/release/tmpl \
+            --template-root .template \
+            --dest . \
+            apply \
+            --project-name "$PROJECT_NAME" \
+            --project-owner "$PROJECT_OWNER" \
+            --project-description "${PROJECT_DESCRIPTION:-}"
+
+      - name: Commit and push
+        if: steps.gate.outputs.applied == 'false'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::notice::No file changes after apply — nothing to commit."
+            exit 0
+          fi
+          git commit -m 'chore: initialize from template'
+          git push

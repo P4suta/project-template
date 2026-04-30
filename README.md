@@ -1,0 +1,100 @@
+# project-template
+
+A language-agnostic GitHub Template Repository whose initial state ships with
+the modern dev-environment hygiene that's worth setting up on day one of
+every project — Docker isolation, typos, lefthook git hooks, Conventional
+Commits, ADRs, Dependabot, coverage gates, strict-code grep, xtask — and
+nothing project-specific.
+
+The template carries a small Rust-based engine (`tmpl`) at `.template/tmpl/`
+that composes a chosen set of *layers* (configuration stacks) into the new
+repository. Layers are designed as nodes of a DAG with capability-based
+dependencies; the engine evaluates them as a pure function of (manifest,
+selection, repository context), records the outcome in a Merkle-rooted state
+file, and supports idempotent re-application via 3-way merge against your
+local edits.
+
+The intent: from `Use this template` to `just lint && just test` in one push.
+
+## Quick start (Path A — GitHub UI)
+
+1. Click **Use this template** on this repository's GitHub page.
+2. Pick a name for your new repository and create it.
+3. The first push triggers `.github/workflows/init.yml`, which builds the
+   `tmpl` engine inside a container, runs `tmpl apply` against the default
+   layer set, and commits the result as `chore: initialize from template`.
+4. Pull the new commit; you now have a fully scaffolded repository.
+
+## Quick start (Path B — local)
+
+```sh
+gh repo create my-project --template P4suta/project-template --public
+gh repo clone my-project && cd my-project
+bash .template/bootstrap.sh --layers core,typos,lefthook,docker-dev,rust-workspace
+```
+
+`bootstrap.sh` provisions the toolchain via `mise`, builds the engine, and
+runs `tmpl apply` against the layers you select. Both paths invoke the same
+`tmpl apply`; they differ only in how the engine is invoked.
+
+## Layer catalogue
+
+| Layer | Provides | Requires | Conflicts | Purpose |
+|---|---|---|---|---|
+| `core` | `licensing`, `meta-files`, `github-issue-templates` | — | — | LICENSE-{APACHE,MIT} / NOTICE / .editorconfig / .gitattributes / .gitignore / README skeleton / CHANGELOG / CONTRIBUTING / CODE_OF_CONDUCT / SECURITY / mise.toml / GitHub issue + PR templates / CODEOWNERS |
+| `typos` | `text-lint` | — | — | `_typos.toml` + the `typos` lint pass |
+| `lefthook` | `git-hooks` | — | — | `lefthook.yml` (generic baseline; language overlays supersede) |
+| `conventional-commits` | `commit-style` | `git-hooks` | — | `committed.toml` + the commit-msg hook + a CI step that lints PR titles |
+| `dependabot-actions` | `deps-bot-actions` | — | — | `.github/dependabot.yml` (github-actions ecosystem only) |
+| `adr-madr` | `decision-records` | — | — | `docs/adr/0000-template.md` (MADR 4.0) + seminal `0001-record-architecture-decisions.md` |
+| `docker-dev` | `container-runtime` | — | — | Multi-stage `Dockerfile` + `docker-compose.yml` + named-volume cargo / sccache caches |
+| `rust-workspace` | `cargo-workspace`, `rust-toolchain` | `container-runtime`, `git-hooks` | `typescript-package` | `Cargo.toml` workspace + `workspace.lints` (clippy pedantic + nursery + cargo) + `clippy.toml` + `rustfmt.toml` + `deny.toml` + `rust-toolchain.toml` + Rust-aware `Justfile` + Rust-aware `lefthook.yml` + cargo / docker Dependabot |
+| `xtask` | `dev-automation` | `cargo-workspace` | — | `crates/xtask` sub-binary scaffold + `[alias] xtask = ...` cargo config |
+| `typescript-package` | `node-package` | `container-runtime`, `git-hooks` | `rust-workspace` | `package.json` + `tsconfig.json` (strict) + `biome.json` + `vitest.config.ts` + TypeScript-aware `Justfile` + TypeScript-aware `lefthook.yml` + npm / docker Dependabot |
+
+Layers expose capabilities and consume capabilities. The engine refuses to
+apply a selection that contains an unsatisfied requirement, a duplicated
+capability, or a cycle in the requirements graph; these failures show up
+before any file is written.
+
+## `tmpl` commands
+
+```text
+tmpl apply --layers <list>     Initial application of a layer set
+tmpl add <layer>               Apply an additional layer (3-way-merges over edits)
+tmpl remove <layer>            Revert a layer (preserves your additions)
+tmpl status                    Applied vs unapplied layers + drift report
+tmpl verify                    Manifest + DAG soundness check (used in CI)
+tmpl seal                      Delete .template/ and graduate from the engine
+tmpl new gh:<owner>/<repo> <dest>   Generate without using the GitHub UI
+```
+
+Run `tmpl --help` after building the engine to see the full surface.
+
+## Repository layout
+
+```
+.template/
+  manifest.toml            Variable definitions and layer registry
+  schema.json              Manifest JSON Schema (validated on load)
+  tmpl/                    The Rust engine (≤ ~1500 LOC, no unsafe)
+  layers/<name>/           Layer assets: layer.toml + tera/jinja templates
+  bootstrap.sh             Path B entry-point
+.github/
+  workflows/init.yml       Path A entry-point (engine via Actions)
+  workflows/tmpl-verify.yml Engine CI for this template repository itself
+  dependabot.yml           Day-1 github-actions ecosystem only
+LICENSE-APACHE / LICENSE-MIT / NOTICE
+README.md                  This file
+```
+
+## License
+
+Dual-licensed under Apache-2.0 OR MIT, at your option. Repositories
+generated by this template inherit the same dual license by default; you
+are free to relicense your own derived projects.
+
+## Status
+
+Phase A (engine + Day-1 hygiene layers) is the active work. See the plan
+file in [`docs/`](./docs/) and ADRs under `docs/adr/` for design rationale.

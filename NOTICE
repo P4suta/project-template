@@ -1,0 +1,20 @@
+project-template
+Copyright (c) the project-template contributors
+
+This project is dual-licensed under Apache-2.0 OR MIT at the user's option.
+See LICENSE-APACHE and LICENSE-MIT for the full license texts. By
+contributing you agree that your contribution is dual-licensed under the
+same terms.
+
+The Rust engine bundled at .template/tmpl/ is original code under the same
+dual license. It depends on third-party crates whose licenses are recorded
+by `cargo-deny` (see deny.toml on consumer projects after applying the
+rust-workspace layer); each crate's own license remains authoritative.
+
+Layer assets under .template/layers/<name>/ are original templates. Where
+a layer adapts upstream patterns (e.g. industry-standard CI workflows,
+public-domain configuration shapes), the layer's README cites the
+inspiration. No upstream source is vendored verbatim.
+
+Repositories generated from this template inherit the dual license by
+default; consumers are free to relicense their own derived projects.

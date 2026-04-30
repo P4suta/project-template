@@ -1,0 +1,158 @@
+# Engine self-CI for the project-template repository.
+#
+# Runs on every push and PR against the template's own main branch:
+#   * cargo fmt --check
+#   * cargo clippy -- -D warnings
+#   * cargo nextest run
+#   * cargo llvm-cov (branch coverage gate at 96 %)
+#   * tmpl verify (manifest + DAG soundness over the bundled layers)
+#   * end-to-end smoke: tmpl apply into a tmpdir, assert no placeholders
+#     leak through and the Merkle root is reproducible across runs.
+
+name: Engine + layer CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tmpl-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (fmt + clippy + typos + actionlint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          components: rustfmt,clippy
+
+      - name: cargo fmt --check
+        run: cargo fmt --manifest-path .template/tmpl/Cargo.toml --all -- --check
+
+      - name: cargo clippy --all-targets -- -D warnings
+        run: |
+          cargo clippy \
+            --manifest-path .template/tmpl/Cargo.toml \
+            --all-targets \
+            -- -D warnings
+
+      - name: typos
+        uses: crate-ci/typos@master
+
+      - name: actionlint
+        uses: raven-actions/actionlint@v2
+
+  test:
+    name: cargo nextest run
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          components: rustfmt,clippy,llvm-tools-preview
+
+      - uses: taiki-e/install-action@nextest
+
+      - run: cargo nextest run --manifest-path .template/tmpl/Cargo.toml
+
+  coverage:
+    # Day-1 floor: 92 %. Long-term target: 96 % (afm-tier). Mirror
+    # the value bumped in the Justfile.
+    name: cargo llvm-cov (regions ≥ 92 %, target 96 %)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          components: rustfmt,clippy,llvm-tools-preview
+
+      - uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: cargo llvm-cov --fail-under-regions 92
+        run: |
+          cargo llvm-cov --manifest-path .template/tmpl/Cargo.toml \
+            --ignore-filename-regex 'src/main\.rs' \
+            --fail-under-regions 92 \
+            --summary-only
+
+  verify:
+    name: tmpl verify + end-to-end smoke
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+
+      - run: cargo build --manifest-path .template/tmpl/Cargo.toml --release
+
+      - name: tmpl verify
+        run: .template/tmpl/target/release/tmpl --template-root .template verify
+
+      - name: End-to-end apply smoke
+        run: |
+          dst="$(mktemp -d)"
+          .template/tmpl/target/release/tmpl \
+            --template-root .template \
+            --dest "$dst" \
+            apply \
+            --project-name smoke-test \
+            --project-owner P4suta \
+            --project-description "tmpl-verify smoke run"
+          # No placeholder must leak into the rendered output.
+          if grep -REn '__[A-Z_]+__' "$dst" \
+              --exclude-dir=.template; then
+            echo "::error::placeholder leaked into rendered output" >&2
+            exit 1
+          fi
+          # Merkle root must be deterministic across runs.
+          dst2="$(mktemp -d)"
+          .template/tmpl/target/release/tmpl \
+            --template-root .template \
+            --dest "$dst2" \
+            apply \
+            --project-name smoke-test \
+            --project-owner P4suta \
+            --project-description "tmpl-verify smoke run"
+          root1="$(grep '^merkle_root' "$dst/.template/state.toml")"
+          root2="$(grep '^merkle_root' "$dst2/.template/state.toml")"
+          if [ "$root1" != "$root2" ]; then
+            echo "::error::merkle root drifted between runs:" >&2
+            echo "  run 1: $root1" >&2
+            echo "  run 2: $root2" >&2
+            exit 1
+          fi
+
+  audit:
+    name: cargo deny check
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+
+      - uses: taiki-e/install-action@cargo-deny
+
+      - run: cargo deny --manifest-path .template/tmpl/Cargo.toml check

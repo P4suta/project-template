@@ -1,0 +1,48 @@
+# Reproducible dev / CI containers. Volume layout:
+#
+#   /workspace            : bind-mount of the source tree
+#   /workspace/.cargo     : named volume — cargo registry / git index
+#   /workspace/target     : named volume — cargo build output
+#   /workspace/.sccache   : named volume — sccache compile cache
+#
+# Named volumes survive `docker compose down`; they're the warm-cache
+# story across container rebuilds. `--rm` on `docker compose run`
+# discards the container itself but keeps the volumes.
+
+services:
+  dev:
+    build:
+      context: .
+      target: dev
+    image: project-template-dev:latest
+    volumes:
+      - .:/workspace:rw
+      - cargo-registry:/workspace/.cargo
+      - cargo-target:/workspace/target
+      - sccache:/workspace/.sccache
+    environment:
+      RUST_BACKTRACE: "1"
+      CARGO_TERM_COLOR: always
+    working_dir: /workspace
+    tty: true
+    stdin_open: true
+
+  ci:
+    build:
+      context: .
+      target: ci
+    image: project-template-ci:latest
+    volumes:
+      - .:/workspace:ro
+      - cargo-registry:/workspace/.cargo
+      - cargo-target:/workspace/target
+      - sccache:/workspace/.sccache
+    environment:
+      RUST_BACKTRACE: "1"
+      CARGO_TERM_COLOR: always
+    working_dir: /workspace
+
+volumes:
+  cargo-registry: {}
+  cargo-target: {}
+  sccache: {}

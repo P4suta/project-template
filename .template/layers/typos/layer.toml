@@ -1,0 +1,6 @@
+name        = "typos"
+description = "typos-cli configuration plus a CI step that lint-checks every text file in the repository."
+
+provides       = ["text-lint"]
+requires       = []
+conflicts-with = []

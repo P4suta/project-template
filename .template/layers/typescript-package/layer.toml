@@ -1,0 +1,6 @@
+name        = "typescript-package"
+description = "Modern TypeScript scaffolding: tsx + biome (fmt + lint single tool) + vitest (test + coverage) + tsconfig in strict mode. Targets Node 22+."
+
+provides       = ["node-package"]
+requires       = ["container-runtime", "git-hooks"]
+conflicts-with = ["rust-workspace"]

@@ -1,0 +1,9 @@
+# Don't rebuild the dev container when only generated artefacts change.
+target/
+.cargo/
+.sccache/
+node_modules/
+coverage/
+*.log
+.git/
+.template/tmpl/target/

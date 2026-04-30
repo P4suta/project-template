@@ -1,0 +1,6 @@
+name        = "conventional-commits"
+description = "Conventional Commits enforcement: `committed` config + commit-msg lefthook hook + a CI step that lints PR titles."
+
+provides       = ["commit-style"]
+requires       = ["git-hooks"]
+conflicts-with = []

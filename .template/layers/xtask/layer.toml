@@ -1,0 +1,6 @@
+name        = "xtask"
+description = "Dev-automation sub-binary: a `crates/xtask/` member of the workspace whose subcommands replace bash one-shots (release prep, dependency audits, custom checks)."
+
+provides       = ["dev-automation"]
+requires       = ["cargo-workspace"]
+conflicts-with = []

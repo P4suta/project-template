@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest a new layer, capability, or engine feature.
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of feature
+      options:
+        - New layer
+        - New capability
+        - Engine (DAG / render / state / merge)
+        - Tooling (Justfile / lefthook / mise)
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: What problem does this solve? Cite a concrete project where the gap appeared.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Sketch the layer / capability / API. Include `requires` / `provides` / `conflictsWith` if it's a layer.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false

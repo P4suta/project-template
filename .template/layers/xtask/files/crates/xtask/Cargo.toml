@@ -1,0 +1,19 @@
+[package]
+name        = "xtask"
+version     = "0.1.0"
+edition     = "2024"
+publish     = false
+description = "Dev automation entry point invoked via `cargo xtask <subcommand>`."
+
+[[bin]]
+name = "xtask"
+path = "src/main.rs"
+
+[dependencies]
+clap      = { version = "4.6", features = ["derive", "wrap_help"] }
+miette    = { version = "7.6", features = ["fancy"] }
+thiserror = "2.0"
+anyhow    = "1.0"
+
+[lints]
+workspace = true

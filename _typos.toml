@@ -1,0 +1,29 @@
+# typos (https://github.com/crate-ci/typos) configuration.
+# Named `_typos.toml` so it doesn't shadow other tools matching `typos.*`.
+
+[default]
+extend-ignore-identifiers-re = [
+    "[A-Fa-f0-9]{7,}",   # git SHAs in comments
+    "BLAKE[0-9]+",       # hash function names
+]
+
+[default.extend-words]
+# Project terminology.
+tmpl = "tmpl"
+templ = "templ"
+# Algorithm / data-structure proper names that look like typos to en-US.
+Tarjan = "Tarjan"
+Kahn = "Kahn"
+Merkle = "Merkle"
+# Author handles
+P4suta = "P4suta"
+Yasunobu = "Yasunobu"
+
+[files]
+extend-exclude = [
+    "target/",
+    "coverage/",
+    "*.lock",
+    "*.snap",
+    ".template/tmpl/tests/snapshots/",
+]

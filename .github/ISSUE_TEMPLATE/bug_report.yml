@@ -1,0 +1,54 @@
+name: Bug report
+description: Report a defect in the engine or a layer.
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - Engine (.template/tmpl/)
+        - Layer (.template/layers/...)
+        - Template repository hygiene
+        - Generated repository (post-apply)
+    validations:
+      required: true
+
+  - type: input
+    id: layer
+    attributes:
+      label: Layer (if applicable)
+      placeholder: e.g. rust-workspace
+    validations:
+      required: false
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Minimal layer selection / context that reproduces the issue.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: Include relevant `tmpl` output and any state.toml drift.
+    validations:
+      required: true
+
+  - type: input
+    id: tmpl-version
+    attributes:
+      label: tmpl version (`tmpl --version`)
+    validations:
+      required: true

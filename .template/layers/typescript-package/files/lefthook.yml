@@ -1,0 +1,41 @@
+# lefthook (https://lefthook.dev/) — TypeScript-aware hook policy.
+# Supersedes the `lefthook` layer's generic config when the
+# `typescript-package` layer is applied.
+
+pre-commit:
+  parallel: true
+  skip:
+    - rebase
+    - merge
+  commands:
+    fmt:
+      glob: "*.{ts,mts,js,mjs,json}"
+      run: just fmt
+      stage_fixed: true
+    biome:
+      glob: "*.{ts,mts,js,mjs,json}"
+      run: just lint-biome
+    typos:
+      run: just typos
+    actionlint:
+      glob: ".github/workflows/*.{yml,yaml}"
+      run: just actionlint
+    yamllint:
+      glob: "**/*.{yml,yaml}"
+      run: just yamllint
+    markdownlint:
+      glob: "**/*.md"
+      run: just markdownlint
+
+commit-msg:
+  commands:
+    conventional:
+      run: committed --commit-file {1}
+
+pre-push:
+  parallel: true
+  skip:
+    - rebase
+  commands:
+    test:
+      run: just test

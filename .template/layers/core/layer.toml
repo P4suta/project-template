@@ -1,0 +1,10 @@
+name        = "core"
+description = "Day-1 hygiene: dual LICENSE, NOTICE, README skeleton, .editorconfig, .gitattributes, .gitignore, CHANGELOG, SECURITY, mise toolchain pin, GitHub issue/PR templates."
+
+# `core` is always applied. It provides the baseline-meta-files
+# capability that other layers (e.g. `lefthook`) reference indirectly
+# through the file scaffolding it sets up. No requires — the floor of
+# the DAG.
+provides       = ["licensing", "meta-files", "github-issue-templates"]
+requires       = []
+conflicts-with = []

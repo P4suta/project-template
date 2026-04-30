@@ -1,0 +1,33 @@
+# {{ project.name }}
+
+{% if project.description %}{{ project.description }}{% else %}TODO: one-sentence description.{% endif %}
+
+## Status
+
+Generated from [project-template](https://github.com/P4suta/project-template).
+The Day-1 hygiene layers (`core`, `typos`, `lefthook`,
+`conventional-commits`, `dependabot-actions`, `adr-madr`) have been
+applied. Pick the language overlay (`rust-workspace`,
+`typescript-package`, …) that matches your project and run:
+
+```sh
+bash .template/bootstrap.sh --layers <chosen-layers>
+```
+
+## Development
+
+```sh
+just bootstrap    # mise install + lefthook install
+just lint         # text-level lints (typos, actionlint, yamllint, markdownlint)
+```
+
+Language-specific recipes (build / test / coverage / audit) appear once
+the matching language layer has been applied.
+
+## License
+
+Dual-licensed under Apache-2.0 OR MIT, at your option. See
+[LICENSE-APACHE](./LICENSE-APACHE) and [LICENSE-MIT](./LICENSE-MIT).
+
+By contributing you agree that your contribution is dual-licensed under
+the same terms — see [CONTRIBUTING.md](./CONTRIBUTING.md).

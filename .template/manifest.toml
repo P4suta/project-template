@@ -1,0 +1,25 @@
+# tmpl manifest — registry of layers and exposed variables.
+#
+# This file is validated against schema/manifest.schema.json (embedded
+# at compile time in the engine). Schema violations surface as
+# `TmplError::Schema` before any rendering happens.
+
+schema_version = 1
+engine_version = "0.1.0"
+
+# Layers applied when `tmpl apply` is invoked without an explicit
+# --layers flag. Selection order is irrelevant — the DAG resolver
+# linearises by capability dependencies, not by listed order.
+default_selection = [
+    "core",
+    "typos",
+    "lefthook",
+    "conventional-commits",
+    "dependabot-actions",
+    "adr-madr",
+]
+
+# No interactive variables in Phase A; project facts come from the
+# repository metadata. Future variables (license choice, target Rust
+# edition, …) will be enumerated here.
+variables = []

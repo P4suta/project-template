@@ -1,0 +1,76 @@
+set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
+set dotenv-load := false
+
+DEV := "docker compose run --rm dev"
+
+default:
+    @just --list --unsorted
+
+# ---------------------------------------------------------------------------
+# Bootstrap
+# ---------------------------------------------------------------------------
+
+bootstrap:
+    docker compose build dev
+    {{DEV}} npm ci
+    just hooks
+
+hooks:
+    {{DEV}} lefthook install
+
+hooks-uninstall:
+    {{DEV}} lefthook uninstall
+
+# Open an interactive shell in the dev container.
+sh:
+    {{DEV}} bash
+
+# ---------------------------------------------------------------------------
+# Build / run
+# ---------------------------------------------------------------------------
+
+build:
+    {{DEV}} npm run build
+
+# ---------------------------------------------------------------------------
+# Lint / format
+# ---------------------------------------------------------------------------
+
+fmt:
+    {{DEV}} npm run fmt
+
+fmt-check:
+    {{DEV}} npm run fmt:check
+
+lint-biome:
+    {{DEV}} npm run lint
+
+typos:
+    {{DEV}} typos
+
+actionlint:
+    {{DEV}} actionlint || true
+
+yamllint:
+    {{DEV}} yamllint .
+
+markdownlint:
+    {{DEV}} markdownlint-cli2 "**/*.md" "#node_modules" "#dist" "#coverage"
+
+lint: fmt-check lint-biome typos
+
+# ---------------------------------------------------------------------------
+# Test, coverage
+# ---------------------------------------------------------------------------
+
+test:
+    {{DEV}} npm test
+
+coverage:
+    {{DEV}} npm run coverage
+
+# ---------------------------------------------------------------------------
+# Aggregate
+# ---------------------------------------------------------------------------
+
+ci: lint test coverage build

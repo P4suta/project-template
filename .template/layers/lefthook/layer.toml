@@ -1,0 +1,6 @@
+name        = "lefthook"
+description = "Pre-commit / commit-msg / pre-push hooks via lefthook. Generic baseline; language layers extend the hook list when applied."
+
+provides       = ["git-hooks"]
+requires       = []
+conflicts-with = []

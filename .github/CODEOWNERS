@@ -1,0 +1,5 @@
+# Code owners for project-template. Everything routes to the maintainer
+# until the layer / engine surface stabilises and per-area owners make
+# sense.
+
+* @P4suta

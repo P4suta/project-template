@@ -1,0 +1,6 @@
+name        = "docker-dev"
+description = "Multi-stage Dockerfile + docker-compose.yml that wraps every dev / CI invocation in a reproducible container. Provides the substrate language overlays (rust-workspace, typescript-package) execute inside."
+
+provides       = ["container-runtime"]
+requires       = []
+conflicts-with = []

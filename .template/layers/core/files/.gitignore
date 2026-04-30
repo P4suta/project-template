@@ -1,0 +1,17 @@
+# Editor scratch
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Logs / scratch
+*.log
+.scratch/
+
+# Direnv
+.envrc.local

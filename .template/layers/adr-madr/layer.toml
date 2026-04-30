@@ -1,0 +1,6 @@
+name        = "adr-madr"
+description = "Architecture Decision Records in the MADR 4.0 format. Ships the empty template and the seminal Nygard ADR as 0001."
+
+provides       = ["decision-records"]
+requires       = []
+conflicts-with = []

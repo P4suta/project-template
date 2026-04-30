@@ -1,0 +1,17 @@
+default: true
+
+# Allow long lines for tables and reference-style links.
+MD013: false
+# Allow inline HTML — needed for ADRs that embed diagrams or details/summary.
+MD033: false
+# Permit duplicate headings across sibling layer READMEs.
+MD024:
+  siblings_only: true
+# Permit bare URLs in inline contexts (issue references, command output).
+MD034: false
+
+# Ignore generated outputs.
+ignores:
+  - "target/"
+  - ".template/tmpl/target/"
+  - "**/CHANGELOG.md"
