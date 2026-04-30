@@ -31,7 +31,7 @@ jobs:
       github.actor != 'github-actions[bot]'
     steps:
       - name: Check out the freshly templated repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           persist-credentials: true
@@ -55,7 +55,7 @@ jobs:
 
       - name: Cache the engine's cargo build
         if: steps.gate.outputs.applied == 'false'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             .template/tmpl/target
