@@ -453,15 +453,17 @@ description = "core layer"
         .expect("write b layer");
 
         let loaded = Template::<Loaded>::load(template_dir.path()).expect("load");
-        let err = loaded.validate().expect_err("asymmetric conflict must be rejected");
+        let err = loaded
+            .validate()
+            .expect_err("asymmetric conflict must be rejected");
         assert!(matches!(err, TmplError::Dag { .. }));
     }
 
     #[test]
     fn load_returns_io_error_when_template_root_lacks_manifest() {
         let template_dir = tempfile::tempdir().expect("tempdir");
-        let err = Template::<Loaded>::load(template_dir.path())
-            .expect_err("missing manifest must error");
+        let err =
+            Template::<Loaded>::load(template_dir.path()).expect_err("missing manifest must error");
         assert!(matches!(err, TmplError::Io { .. }));
     }
 
@@ -560,7 +562,9 @@ description = "core layer"
         )
         .expect("write layer.toml");
         fs::write(
-            template_dir.path().join("layers/core/files/docs/adr/0001.md"),
+            template_dir
+                .path()
+                .join("layers/core/files/docs/adr/0001.md"),
             "# 1. Test\n",
         )
         .expect("write nested file");

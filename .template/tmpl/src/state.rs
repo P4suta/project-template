@@ -330,7 +330,10 @@ mod tests {
 
     #[test]
     fn hash_parse_error_displays_human_readably() {
-        assert_eq!(format!("{}", HashParseError::Length), "expected 64 hex chars");
+        assert_eq!(
+            format!("{}", HashParseError::Length),
+            "expected 64 hex chars"
+        );
         assert_eq!(
             format!("{}", HashParseError::Digit(b'g')),
             "non-hex digit 103",

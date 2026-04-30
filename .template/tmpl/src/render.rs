@@ -371,7 +371,10 @@ mod tests {
                 .iter()
                 .find(|f| f.path.as_path() == "run.sh")
                 .expect("run.sh");
-            assert!(entry.executable, "executable bit must propagate to the patch");
+            assert!(
+                entry.executable,
+                "executable bit must propagate to the patch"
+            );
         }
     }
 

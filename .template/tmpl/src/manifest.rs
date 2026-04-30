@@ -300,7 +300,8 @@ required = false
     fn load_rejects_schema_violation_bad_layer_name() {
         let dir = tempfile::tempdir().expect("tempdir");
         // Uppercase letter violates the layer-name pattern.
-        let body = "schema_version = 1\nengine_version = \"0.1.0\"\ndefault_selection = [\"BAD-NAME\"]\n";
+        let body =
+            "schema_version = 1\nengine_version = \"0.1.0\"\ndefault_selection = [\"BAD-NAME\"]\n";
         let p = write(dir.path(), body);
         let err = Manifest::load(&p).expect_err("must fail");
         assert!(matches!(err, TmplError::Schema { .. }));
@@ -356,7 +357,10 @@ type = "int"
             .expect("valid toml");
         let json = toml_to_json(doc.as_item());
         let obj = json.as_object().expect("object");
-        assert_eq!(obj.get("x").and_then(|v| v.as_array()).map(Vec::len), Some(3));
+        assert_eq!(
+            obj.get("x").and_then(|v| v.as_array()).map(Vec::len),
+            Some(3)
+        );
         assert!(obj.get("y").and_then(|v| v.as_object()).is_some());
     }
 
@@ -398,7 +402,11 @@ type = "int"
         // Empty root parses to an empty table — confirm and then drive
         // the None arm via a missing index.
         assert!(json.is_object());
-        let missing = doc.as_item().get("nope").cloned().unwrap_or(toml_edit::Item::None);
+        let missing = doc
+            .as_item()
+            .get("nope")
+            .cloned()
+            .unwrap_or(toml_edit::Item::None);
         let json_none = toml_to_json(&missing);
         assert!(json_none.is_null());
     }

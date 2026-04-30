@@ -450,10 +450,12 @@ mod tests {
         // as an UnknownLayer error.
         let reg = registry(vec![meta("a", &[], &[], &["ghost"])]);
         let report = verify_registry(&reg);
-        assert!(report
-            .errors
-            .iter()
-            .any(|e| matches!(e, ResolveError::UnknownLayer(n) if n.as_str() == "ghost")));
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|e| matches!(e, ResolveError::UnknownLayer(n) if n.as_str() == "ghost"))
+        );
     }
 
     #[test]

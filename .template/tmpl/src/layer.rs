@@ -297,10 +297,7 @@ mod tests {
 
     #[test]
     fn name_error_displays_human_readably() {
-        assert_eq!(
-            format!("{}", NameError::Empty),
-            "name must not be empty"
-        );
+        assert_eq!(format!("{}", NameError::Empty), "name must not be empty");
         let err = LayerName::new("BAD").expect_err("rejected");
         let rendered = format!("{err}");
         assert!(rendered.contains("characters outside"));
