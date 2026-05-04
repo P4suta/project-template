@@ -1,12 +1,15 @@
 # Path A entry point: when a generated repository receives its first
-# push, build the `tmpl` engine inside Actions and apply the default
-# layer selection, committing the result as
-# `chore: initialize from template`.
+# push, build the `tmpl` engine inside Actions, apply the default layer
+# selection, prune everything that isn't a rendered output, and commit
+# the result as `chore: initialize from template`. After this commit,
+# the templated repo no longer contains any of the template's setup
+# machinery (engine, layers, state, this very workflow, etc.).
 #
 # This workflow is intentionally a no-op on the project-template
 # repository itself — the `if:` guard on the job blocks execution
 # whenever `${{ github.event.repository.name }}` matches the template
-# repo's own name.
+# repo's own name. It is also a structured no-op on a repository that
+# has already graduated (no engine present).
 
 name: Template initialization
 
@@ -24,7 +27,7 @@ concurrency:
 
 jobs:
   init:
-    name: Apply layers via tmpl
+    name: Apply layers and graduate
     runs-on: ubuntu-latest
     if: >-
       github.event.repository.name != 'project-template' &&
@@ -36,25 +39,25 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Skip if .template/state.toml already exists
+      - name: Skip if the repository has already graduated
         id: gate
         run: |
-          if [ -f .template/state.toml ]; then
-            echo "applied=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::.template/state.toml already exists — initialization is a no-op."
+          if [ -f .template/tmpl/Cargo.toml ]; then
+            echo "graduated=false" >> "$GITHUB_OUTPUT"
           else
-            echo "applied=false" >> "$GITHUB_OUTPUT"
+            echo "graduated=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Engine not present — repository has already graduated."
           fi
 
       - name: Install Rust toolchain pinned by .template/tmpl/rust-toolchain.toml
-        if: steps.gate.outputs.applied == 'false'
+        if: steps.gate.outputs.graduated == 'false'
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.95.0
           components: rustfmt,clippy
 
       - name: Cache the engine's cargo build
-        if: steps.gate.outputs.applied == 'false'
+        if: steps.gate.outputs.graduated == 'false'
         uses: actions/cache@v5
         with:
           path: |
@@ -64,11 +67,11 @@ jobs:
           key: tmpl-engine-${{ hashFiles('.template/tmpl/Cargo.lock', '.template/tmpl/Cargo.toml') }}
 
       - name: Build tmpl
-        if: steps.gate.outputs.applied == 'false'
+        if: steps.gate.outputs.graduated == 'false'
         run: cargo build --release --manifest-path .template/tmpl/Cargo.toml
 
       - name: Apply layers
-        if: steps.gate.outputs.applied == 'false'
+        if: steps.gate.outputs.graduated == 'false'
         env:
           PROJECT_NAME: ${{ github.event.repository.name }}
           PROJECT_OWNER: ${{ github.event.repository.owner.login }}
@@ -82,8 +85,37 @@ jobs:
             --project-owner "$PROJECT_OWNER" \
             --project-description "${PROJECT_DESCRIPTION:-}"
 
+      - name: Prune template residue and remove the engine
+        if: steps.gate.outputs.graduated == 'false'
+        run: |
+          set -euo pipefail
+
+          # Whitelist = files the engine actually rendered.
+          .template/tmpl/target/release/tmpl \
+            --template-root .template --dest . \
+            applied-files | sort -u > /tmp/keep.txt
+
+          if [ ! -s /tmp/keep.txt ]; then
+            echo "::error::tmpl applied-files returned an empty whitelist; refusing to prune"
+            exit 1
+          fi
+
+          # Residue = tracked files NOT rendered by any layer (= template machinery
+          # inherited from the Initial commit: `.template/`, this workflow,
+          # tmpl-verify.yml, the engine's dev Justfile, etc.).
+          git ls-files | sort -u > /tmp/all.txt
+          comm -23 /tmp/all.txt /tmp/keep.txt > /tmp/remove.txt
+
+          if [ -s /tmp/remove.txt ]; then
+            xargs -a /tmp/remove.txt git rm --quiet
+          fi
+
+          # Remove the engine itself + state.toml + cargo target/ (covers
+          # untracked artefacts that `git rm` doesn't see).
+          rm -rf .template
+
       - name: Commit and push
-        if: steps.gate.outputs.applied == 'false'
+        if: steps.gate.outputs.graduated == 'false'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
