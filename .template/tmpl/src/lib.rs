@@ -39,6 +39,6 @@ pub use layer::{Capability, Layer, LayerMeta, LayerName, Patch, RenderedFile, Re
 pub use manifest::Manifest;
 pub use state::{
     AppliedEntry, AppliedFileEntry, ContentHash, DriftReport, State, applied_file_entries,
-    detect_drift, hash_content,
+    applied_paths, detect_drift, hash_content,
 };
 pub use template::{Applied, Loaded, Rendered, Resolved, Template, Validated};
