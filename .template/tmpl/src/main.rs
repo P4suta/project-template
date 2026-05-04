@@ -16,7 +16,7 @@ use miette::IntoDiagnostic;
 use tmpl::Context;
 use tmpl::ctx::ProjectInfo;
 use tmpl::layer::LayerName;
-use tmpl::state::{ContentHash, DriftReport, State, detect_drift, merkle_root};
+use tmpl::state::{ContentHash, DriftReport, State, applied_paths, detect_drift, merkle_root};
 use tmpl::template::{Loaded, Template};
 
 /// CLI surface.
@@ -98,6 +98,14 @@ enum Command {
     Verify,
     /// Print the current applied state, if any.
     Status,
+    /// Print the paths recorded in `.template/state.toml`, one per
+    /// line (or NUL-separated under `--null` for `xargs -0`). Used by
+    /// `init.yml` to drive selective `git add` / `git rm` after apply.
+    AppliedFiles {
+        /// Use NUL (`\0`) as the separator instead of newline.
+        #[arg(long, default_value_t = false)]
+        null: bool,
+    },
     /// Delete `.template/` and graduate from the engine. Idempotent —
     /// re-running on a sealed repo is a structured no-op.
     Seal,
@@ -187,6 +195,7 @@ fn run() -> miette::Result<()> {
         Command::Remove { layer, force } => remove(&cli.dest, &layer, force),
         Command::Verify => verify(&cli.template_root),
         Command::Status => status(&cli.dest),
+        Command::AppliedFiles { null } => applied_files(&cli.dest, null),
         Command::Seal => seal(&cli.template_root),
         Command::New {
             source,
@@ -457,6 +466,16 @@ fn status(dest: &Path) -> miette::Result<()> {
                 plural = if entry.files.len() == 1 { "" } else { "s" },
             );
         }
+    }
+    Ok(())
+}
+
+fn applied_files(dest: &Path, null: bool) -> miette::Result<()> {
+    let path = dest.join(".template").join("state.toml");
+    let state = State::load(&path).into_diagnostic()?;
+    let sep = if null { '\0' } else { '\n' };
+    for p in applied_paths(&state) {
+        print!("{}{sep}", p.as_path().as_str());
     }
     Ok(())
 }

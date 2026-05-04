@@ -202,6 +202,21 @@ pub fn applied_file_entries(patch: &Patch) -> Vec<AppliedFileEntry> {
     out
 }
 
+/// Flatten the applied state into the list of all recorded
+/// rendered file paths.
+///
+/// Order follows `BTreeMap` key sort across layers and preserves
+/// each layer's recorded `files` order verbatim. Used by `tmpl
+/// applied-files` to drive selective `git add` from CI.
+#[must_use]
+pub fn applied_paths(state: &State) -> Vec<&RenderedPath> {
+    state
+        .applied
+        .values()
+        .flat_map(|entry| entry.files.iter().map(|f| &f.path))
+        .collect()
+}
+
 /// Outcome of [`detect_drift`].
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DriftReport {
@@ -577,6 +592,66 @@ mod tests {
             .save(&bogus)
             .expect_err("missing parent must surface as Io error");
         assert!(matches!(err, TmplError::Io { .. }));
+    }
+
+    #[test]
+    fn applied_paths_returns_all_recorded_files_in_layer_order() {
+        // `applied_paths` flat-maps per-file entries across the
+        // BTreeMap of applied layers. Order must follow BTreeMap key
+        // sort across layers, then preserve each layer's recorded
+        // file order verbatim (no re-sorting within a layer — that
+        // invariant is established earlier by `applied_file_entries`
+        // when state is written).
+        let mut applied = BTreeMap::new();
+        applied.insert(
+            name("typos"),
+            AppliedEntry {
+                content_hash: ContentHash([0u8; 32]),
+                applied_at: SmolStr::new("2026-04-30T00:00:00Z"),
+                files: vec![AppliedFileEntry {
+                    path: RenderedPath::new("_typos.toml").unwrap(),
+                    content_hash: ContentHash([0u8; 32]),
+                    executable: false,
+                }],
+            },
+        );
+        applied.insert(
+            name("core"),
+            AppliedEntry {
+                content_hash: ContentHash([0u8; 32]),
+                applied_at: SmolStr::new("2026-04-30T00:00:00Z"),
+                files: vec![
+                    AppliedFileEntry {
+                        path: RenderedPath::new("README.md").unwrap(),
+                        content_hash: ContentHash([0u8; 32]),
+                        executable: false,
+                    },
+                    AppliedFileEntry {
+                        path: RenderedPath::new(".gitignore").unwrap(),
+                        content_hash: ContentHash([0u8; 32]),
+                        executable: false,
+                    },
+                ],
+            },
+        );
+        let state = State {
+            engine_version: SmolStr::new("0.1.0"),
+            merkle_root: ContentHash([0u8; 32]),
+            applied,
+        };
+
+        let paths: Vec<&str> = applied_paths(&state)
+            .iter()
+            .map(|p| p.as_path().as_str())
+            .collect();
+        assert_eq!(paths, vec!["README.md", ".gitignore", "_typos.toml"]);
+    }
+
+    #[test]
+    fn applied_paths_returns_empty_for_default_state() {
+        let state = State::default();
+        let paths = applied_paths(&state);
+        assert!(paths.is_empty());
     }
 
     #[test]
