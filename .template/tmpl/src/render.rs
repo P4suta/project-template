@@ -502,4 +502,32 @@ mod tests {
             assert!(!names.contains(&"link.txt"));
         }
     }
+
+    #[test]
+    fn core_layer_gitignore_excludes_engine_target_dir() {
+        // The engine source `.template/tmpl/` ships in every templated
+        // repo and inevitably builds a `target/` directory under it
+        // when init.yml or the user runs `cargo build`. The core
+        // layer's rendered .gitignore must exclude that path so the
+        // build artefacts never reach the initial template commit.
+        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let core_layer = manifest_dir
+            .parent()
+            .expect("crate dir lives under .template/")
+            .join("layers/core");
+        let layer = FilesystemLayer::load(&core_layer).expect("load core layer");
+        let ctx = Context::for_test("acme", "P4suta");
+        let patch = layer.render(&ctx).expect("render core layer");
+
+        let gitignore = patch
+            .files
+            .iter()
+            .find(|f| f.path.as_path() == ".gitignore")
+            .expect("core layer must render .gitignore");
+        assert!(
+            gitignore.content.contains(".template/tmpl/target/"),
+            "core .gitignore must exclude engine build artefacts; current content:\n{}",
+            gitignore.content,
+        );
+    }
 }
