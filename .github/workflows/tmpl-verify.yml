@@ -48,7 +48,7 @@ jobs:
             -- -D warnings
 
       - name: typos
-        uses: crate-ci/typos@3bcd3b343e2ffaa3d23f8cfe7f78d0f8c2d0d0c6 # master
+        uses: crate-ci/typos@5374cbf686e897b15713110e233094e2874de7ef # master
 
       - name: actionlint
         uses: raven-actions/actionlint@205b530c5d9fa8f44ae9ed59f341a0db994aa6f8 # v2.1.2
@@ -65,7 +65,7 @@ jobs:
           toolchain: 1.95.0
           components: rustfmt,clippy,llvm-tools-preview
 
-      - uses: taiki-e/install-action@711e1c3275189d76dcc4d34ddea63bf96ac49090 # v2.76.0
+      - uses: taiki-e/install-action@fa0dd4cd0a40696e6f9766370614a5ce482e6aa8 # v2.77.5
         with:
           tool: nextest
 
@@ -85,7 +85,7 @@ jobs:
           toolchain: 1.95.0
           components: rustfmt,clippy,llvm-tools-preview
 
-      - uses: taiki-e/install-action@711e1c3275189d76dcc4d34ddea63bf96ac49090 # v2.76.0
+      - uses: taiki-e/install-action@fa0dd4cd0a40696e6f9766370614a5ce482e6aa8 # v2.77.5
         with:
           tool: cargo-llvm-cov
 
@@ -157,7 +157,7 @@ jobs:
         with:
           toolchain: 1.95.0
 
-      - uses: taiki-e/install-action@711e1c3275189d76dcc4d34ddea63bf96ac49090 # v2.76.0
+      - uses: taiki-e/install-action@fa0dd4cd0a40696e6f9766370614a5ce482e6aa8 # v2.77.5
         with:
           tool: cargo-deny
 
