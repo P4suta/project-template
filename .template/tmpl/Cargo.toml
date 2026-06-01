@@ -38,7 +38,7 @@ serde_json = "1.0"
 toml_edit  = { version = "0.25", features = ["serde"] }
 
 # Template engine — minijinja (mitsuhiko, Jinja2-compatible, mainstream-2026).
-minijinja = { version = "2.19", features = ["loader", "loop_controls", "json"] }
+minijinja = { version = "2.20", features = ["loader", "loop_controls", "json"] }
 
 # DAG operations — used internally by `dag.rs` for Kahn / Tarjan over layer
 # graphs. We pick algorithms deliberately and keep the surface narrow; see
