@@ -29,3 +29,7 @@ Thumbs.db
 
 # Local override for layers selection during template development
 .tmpl-local.toml
+
+# Personal Claude Code working notes — per-developer, not committed.
+CLAUDE.md
+CLAUDE.local.md
