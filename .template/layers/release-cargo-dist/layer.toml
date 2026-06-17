@@ -1,0 +1,13 @@
+name        = "release-cargo-dist"
+description = "Release automation via dist (cargo-dist). Ships dist-workspace.toml; `dist init` generates the .github/workflows/release.yml on tag, producing archives, shell/powershell installers, checksums, and a GitHub Release whose notes come from the changelog. Workspace-publish ordering is handled by dist, not hand-rolled tag matrices."
+
+# `release-automation` is a fresh capability — nothing else provides it,
+# so selecting this layer never collides. It needs a Cargo workspace to
+# release, hence the `cargo-workspace` requirement (provided by
+# `rust-workspace`). The generated workflow lives at
+# `.github/workflows/release.yml`; it is intentionally NOT shipped as a
+# static file so the workflow always matches the pinned dist version
+# (`dist generate` refreshes it).
+provides       = ["release-automation"]
+requires       = ["cargo-workspace"]
+conflicts-with = []

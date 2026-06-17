@@ -1,6 +1,6 @@
 name        = "rust-workspace"
-description = "Cargo workspace scaffolding with a strict lint policy (clippy pedantic + nursery + cargo + curated restriction picks), a tight clippy.toml, stable-only rustfmt, cargo-deny, and Justfile recipes for fmt / lint / test / coverage / audit."
+description = "Cargo workspace scaffolding with a strict lint policy (clippy pedantic + nursery + cargo + curated restriction picks), a tight clippy.toml, stable-only rustfmt, cargo-deny, mise-pinned cargo plugins, and a host/mise Justfile (plain cargo, no container required) with ci / codeql workflows. Add the optional docker-dev layer for a reproducible OS envelope."
 
 provides       = ["cargo-workspace", "rust-toolchain"]
-requires       = ["container-runtime", "git-hooks"]
+requires       = ["git-hooks"]
 conflicts-with = ["typescript-package"]
