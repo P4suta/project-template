@@ -1,0 +1,38 @@
+# dist (cargo-dist) configuration — https://opensource.axo.dev/cargo-dist/
+#
+# After applying this layer run `dist init` once (it reads the values
+# below and writes `.github/workflows/release.yml`). Bump
+# `cargo-dist-version` deliberately; `dist generate` then refreshes the
+# workflow so the committed YAML always matches the pinned tool version.
+#
+# Release is tag-triggered: push a SemVer tag (`v1.2.3`) and the
+# generated workflow builds per-target archives + installers, computes
+# checksums, and opens a GitHub Release with changelog-derived notes.
+# dist resolves workspace publish ordering itself — do not hand-roll a
+# per-binary tag matrix.
+
+[workspace]
+members = ["cargo:."]
+
+[dist]
+# Pinned dist version used in CI (Cargo SemVer syntax). Dependabot does
+# not track this; bump it by hand and re-run `dist generate`.
+cargo-dist-version = "0.32.0"
+
+# CI backend that hosts the release workflow.
+ci = "github"
+
+# Installers generated alongside the archives.
+installers = ["shell", "powershell"]
+
+# Target triples to build release artifacts for.
+targets = [
+    "aarch64-apple-darwin",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+]
+
+# Open the GitHub Release as a draft until artifacts finish uploading.
+pr-run-mode = "plan"
