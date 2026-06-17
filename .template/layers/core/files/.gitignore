@@ -18,3 +18,9 @@ Thumbs.db
 
 # Engine build artefacts (engine ships in every templated repo)
 .template/tmpl/target/
+
+# Personal Claude Code working notes — treated as a per-developer file,
+# not a shared project artefact. Shared conventions live in README /
+# CONTRIBUTING / docs/adr instead.
+CLAUDE.md
+CLAUDE.local.md
