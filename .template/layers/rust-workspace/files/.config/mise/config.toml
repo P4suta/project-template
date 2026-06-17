@@ -16,3 +16,4 @@ rust = "1.95.0"
 "cargo:cargo-nextest" = "latest"
 "cargo:cargo-deny" = "latest"
 "cargo:cargo-llvm-cov" = "latest"
+"cargo:bacon" = "latest"  # `just watch`
