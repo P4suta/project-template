@@ -39,10 +39,3 @@ pre-push:
   commands:
     test:
       run: just test
-    # 依存マニフェストを変更した push のとき、Dependabot のスキャンを待たず
-    # ローカルで古さを通知する。非ブロッキング(`|| true`)— push は止めない。
-    # gh 未認証だと renovate-local が exit 1 するが、その旨は stderr に出る。
-    # 通知だけで十分なら manual 実行(`just renovate-local`)に切り替えてよい。
-    deps-freshness:
-      glob: "{package.json,package-lock.json,Dockerfile,.github/workflows/*}"
-      run: just renovate-local || true
