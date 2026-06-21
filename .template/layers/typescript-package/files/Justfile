@@ -70,6 +70,17 @@ coverage:
     {{DEV}} npm run coverage
 
 # ---------------------------------------------------------------------------
+# Dependencies — local freshness lookup
+# ---------------------------------------------------------------------------
+
+# Renovate --platform=local(dryRun=lookup)で全エコシステム横断の「古さ」を
+# ローカル確認。PR は Dependabot に任せたまま、push を待たず手元で気づくための
+# read-only な lookup。dev コンテナではなくホスト側で動く(lookup は manifest を
+# 読み datasource を引くだけ。scripts/renovate-local.sh 参照)。
+renovate-local:
+    bash scripts/renovate-local.sh
+
+# ---------------------------------------------------------------------------
 # Aggregate
 # ---------------------------------------------------------------------------
 
