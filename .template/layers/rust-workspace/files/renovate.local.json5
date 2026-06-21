@@ -1,0 +1,18 @@
+{
+  // ローカル lookup 専用(scripts/renovate-local.sh が読む)。PR ボットは
+  // Dependabot(.github/dependabot.yml)。デフォルト名(renovate.json)を避けるのは、
+  // 将来 Renovate ボットを有効化しても自動検出させず Dependabot と混線させないため。
+  //
+  // 全マネージャ(cargo / dockerfile / github-actions / mise / devcontainer)は
+  // デフォルトで有効。lookup なので広く拾うほどよい。mise マネージャは Dependabot が
+  // 見られない領域なので、ここでだけ .config/mise の cargo プラグイン等のピン遅れが
+  // 可視化される。
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // MSRV を凍結する repo(rust-toolchain.toml / Docker FROM rust / mise の rust を
+  // 手で同期)は、dependabot.yml の ignore と parity を取り rust ツールチェーンを
+  // 除外するとノイズが減る。このテンプレ既定の dependabot.yml は ignore 無しなので
+  // ここも既定は空。必要なら有効化:
+  //   packageRules: [{ matchPackageNames: ["rust", "dtolnay/rust-toolchain"], enabled: false }],
+  packageRules: [],
+}
