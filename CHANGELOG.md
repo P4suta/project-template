@@ -28,9 +28,9 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
-- The core layer's `.gitignore` excludes `.template/tmpl/target/` as
-  defence-in-depth against engine build artefacts ever being staged.
-  The new prune step in `init.yml` removes `.template/` entirely
-  before the initial commit, so templated repositories no longer
-  inherit ~1100 cargo build artefacts (regression observed in
-  slot-booking-system on 2026-05-05).
+- The `conventional-commits` layer's `committed.toml` spelled its keys in kebab-case, which `committed` silently ignores, so generated repositories enforced the defaults instead:
+  a capitalized subject, and no `build`, `ci` or `revert` type.
+  The keys are now snake_case, so lowercase subjects and every listed type pass as intended.
+- The README layer table listed `container-runtime` as a requirement of `rust-workspace`, which only requires `git-hooks`.
+- The core layer's `.gitignore` excludes `.template/tmpl/target/` as defence-in-depth against engine build artefacts ever being staged.
+  The new prune step in `init.yml` removes `.template/` entirely before the initial commit, so templated repositories no longer inherit ~1100 cargo build artefacts (regression observed in slot-booking-system on 2026-05-05).

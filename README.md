@@ -44,7 +44,7 @@ runs `tmpl apply` against the layers you select. Both paths invoke the same
 | `renovate` | `deps-bot` | — | — | `renovate.json` extending the shared `github>P4suta/renovate-config` preset (Renovate finds GitHub Actions, cargo, npm and Dockerfile dependencies on its own) |
 | `adr-madr` | `decision-records` | — | — | `docs/adr/0000-template.md` (MADR 4.0) + seminal `0001-record-architecture-decisions.md` |
 | `docker-dev` | `container-runtime` | — | — | Multi-stage `Dockerfile` + `docker-compose.yml` + named-volume cargo / sccache caches |
-| `rust-workspace` | `cargo-workspace`, `rust-toolchain` | `container-runtime`, `git-hooks` | `typescript-package` | `Cargo.toml` workspace + `workspace.lints` (clippy pedantic + nursery + cargo) + `clippy.toml` + `rustfmt.toml` + `deny.toml` + `rust-toolchain.toml` + Rust-aware `Justfile` + Rust-aware `lefthook.yml` |
+| `rust-workspace` | `cargo-workspace`, `rust-toolchain` | `git-hooks` | `typescript-package` | `Cargo.toml` workspace + `workspace.lints` (clippy pedantic + nursery + cargo) + `clippy.toml` + `rustfmt.toml` + `deny.toml` + `rust-toolchain.toml` + Rust-aware `Justfile` + Rust-aware `lefthook.yml` |
 | `xtask` | `dev-automation` | `cargo-workspace` | — | `crates/xtask` sub-binary scaffold + `[alias] xtask = ...` cargo config |
 | `typescript-package` | `node-package` | `container-runtime`, `git-hooks` | `rust-workspace` | `package.json` + `tsconfig.json` (strict) + `biome.json` + `vitest.config.ts` + TypeScript-aware `Justfile` + TypeScript-aware `lefthook.yml` |
 
