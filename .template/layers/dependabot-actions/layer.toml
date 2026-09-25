@@ -1,6 +1,0 @@
-name        = "dependabot-actions"
-description = "Weekly Dependabot bumps for the github-actions ecosystem. Language layers add cargo / npm / docker entries when applied."
-
-provides       = ["deps-bot-actions"]
-requires       = []
-conflicts-with = []
