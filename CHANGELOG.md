@@ -18,13 +18,13 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- The `dependabot-actions` layer is replaced by `renovate`, which provides `deps-bot` and ships a `renovate.json` extending the shared `github>P4suta/renovate-config` preset.
+  `rust-workspace` and `typescript-package` no longer ship `.github/dependabot.yml`, since Renovate finds cargo, npm and Dockerfile dependencies on its own.
+  The `conventional-commits` layer's commitlint workflow now skips PRs from every bot account, not just Dependabot.
 - `init.yml` now graduates the templated repository in a single run:
-  after `tmpl apply`, every tracked file not rendered by a layer is
-  removed and the entire `.template/` tree is deleted. The resulting
-  repo contains only the layered output — engine, layer sources, this
-  workflow, and `tmpl-verify.yml` are all gone after the initial
-  commit. The gate now checks for the engine's presence rather than
-  `state.toml` existence.
+  after `tmpl apply`, every tracked file not rendered by a layer is removed and the entire `.template/` tree is deleted.
+  The resulting repo contains only the layered output — engine, layer sources, this workflow, and `tmpl-verify.yml` are all gone after the initial commit.
+  The gate now checks for the engine's presence rather than `state.toml` existence.
 
 ### Fixed
 

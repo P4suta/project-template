@@ -20,10 +20,8 @@ upstream; we will track and update.
 
 ## Supply chain
 
-- Dependencies are pinned via `Cargo.lock` (committed) and bumped weekly
-  by Dependabot. We do not pre-emptively pin to specific patch versions
-  in `Cargo.toml` — `cargo update` is the regular cadence.
-- GitHub Actions are pinned to commit SHAs and bumped by Dependabot.
-- Releases of the engine are not currently published to crates.io; the
-  engine is built in-tree from source whenever a generated repository
-  invokes `tmpl apply`.
+- Dependencies are pinned via `Cargo.lock` (committed) and updated weekly by Renovate, following the shared [P4suta/renovate-config](https://github.com/P4suta/renovate-config) preset.
+  Renovate waits three days after a release before proposing it; minor and patch updates then merge automatically once CI passes, and major updates wait for a maintainer.
+  We do not pre-emptively pin to specific patch versions in `Cargo.toml` — `cargo update`, run by Renovate's lock-file maintenance, is the regular cadence.
+- GitHub Actions are pinned to commit SHAs and bumped by Renovate.
+- Releases of the engine are not currently published to crates.io; the engine is built in-tree from source whenever a generated repository invokes `tmpl apply`.

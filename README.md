@@ -1,10 +1,6 @@
 # project-template
 
-A language-agnostic GitHub Template Repository whose initial state ships with
-the modern dev-environment hygiene that's worth setting up on day one of
-every project — Docker isolation, typos, lefthook git hooks, Conventional
-Commits, ADRs, Dependabot, coverage gates, strict-code grep, xtask — and
-nothing project-specific.
+A language-agnostic GitHub Template Repository whose initial state ships with the modern dev-environment hygiene that's worth setting up on day one of every project — Docker isolation, typos, lefthook git hooks, Conventional Commits, ADRs, Renovate, coverage gates, strict-code grep, xtask — and nothing project-specific.
 
 The template carries a small Rust-based engine (`tmpl`) at `.template/tmpl/`
 that composes a chosen set of *layers* (configuration stacks) into the new
@@ -45,12 +41,12 @@ runs `tmpl apply` against the layers you select. Both paths invoke the same
 | `typos` | `text-lint` | — | — | `_typos.toml` + the `typos` lint pass |
 | `lefthook` | `git-hooks` | — | — | `lefthook.yml` (generic baseline; language overlays supersede) |
 | `conventional-commits` | `commit-style` | `git-hooks` | — | `committed.toml` + the commit-msg hook + a CI step that lints PR titles |
-| `dependabot-actions` | `deps-bot-actions` | — | — | `.github/dependabot.yml` (github-actions ecosystem only) |
+| `renovate` | `deps-bot` | — | — | `renovate.json` extending the shared `github>P4suta/renovate-config` preset (Renovate finds GitHub Actions, cargo, npm and Dockerfile dependencies on its own) |
 | `adr-madr` | `decision-records` | — | — | `docs/adr/0000-template.md` (MADR 4.0) + seminal `0001-record-architecture-decisions.md` |
 | `docker-dev` | `container-runtime` | — | — | Multi-stage `Dockerfile` + `docker-compose.yml` + named-volume cargo / sccache caches |
-| `rust-workspace` | `cargo-workspace`, `rust-toolchain` | `container-runtime`, `git-hooks` | `typescript-package` | `Cargo.toml` workspace + `workspace.lints` (clippy pedantic + nursery + cargo) + `clippy.toml` + `rustfmt.toml` + `deny.toml` + `rust-toolchain.toml` + Rust-aware `Justfile` + Rust-aware `lefthook.yml` + cargo / docker Dependabot |
+| `rust-workspace` | `cargo-workspace`, `rust-toolchain` | `container-runtime`, `git-hooks` | `typescript-package` | `Cargo.toml` workspace + `workspace.lints` (clippy pedantic + nursery + cargo) + `clippy.toml` + `rustfmt.toml` + `deny.toml` + `rust-toolchain.toml` + Rust-aware `Justfile` + Rust-aware `lefthook.yml` |
 | `xtask` | `dev-automation` | `cargo-workspace` | — | `crates/xtask` sub-binary scaffold + `[alias] xtask = ...` cargo config |
-| `typescript-package` | `node-package` | `container-runtime`, `git-hooks` | `rust-workspace` | `package.json` + `tsconfig.json` (strict) + `biome.json` + `vitest.config.ts` + TypeScript-aware `Justfile` + TypeScript-aware `lefthook.yml` + npm / docker Dependabot |
+| `typescript-package` | `node-package` | `container-runtime`, `git-hooks` | `rust-workspace` | `package.json` + `tsconfig.json` (strict) + `biome.json` + `vitest.config.ts` + TypeScript-aware `Justfile` + TypeScript-aware `lefthook.yml` |
 
 Layers expose capabilities and consume capabilities. The engine refuses to
 apply a selection that contains an unsatisfied requirement, a duplicated
@@ -69,7 +65,6 @@ before any file is written.
 .github/
   workflows/init.yml       Path A entry-point (engine via Actions)
   workflows/tmpl-verify.yml Engine CI for this template repository itself
-  dependabot.yml           Day-1 github-actions ecosystem only
 LICENSE-APACHE / LICENSE-MIT / NOTICE
 README.md                  This file
 ```

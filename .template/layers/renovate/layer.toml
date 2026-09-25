@@ -1,0 +1,8 @@
+name        = "renovate"
+description = "Renovate dependency updates: a renovate.json that extends the shared github>P4suta/renovate-config preset. Renovate detects GitHub Actions, cargo, npm, Dockerfile and other manifests on its own, so language layers add nothing to it."
+
+# Repositories under the P4suta account inherit the same preset from the account-wide Renovate config, even without this file.
+# Shipping renovate.json keeps the policy visible in the repository and carries it to repositories created outside the account.
+provides       = ["deps-bot"]
+requires       = []
+conflicts-with = []

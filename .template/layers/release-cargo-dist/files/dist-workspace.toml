@@ -15,8 +15,8 @@
 members = ["cargo:."]
 
 [dist]
-# Pinned dist version used in CI (Cargo SemVer syntax). Dependabot does
-# not track this; bump it by hand and re-run `dist generate`.
+# Pinned dist version used in CI (Cargo SemVer syntax).
+# Renovate has no manager for dist-workspace.toml, so it does not track this; bump it by hand and re-run `dist generate`.
 cargo-dist-version = "0.32.0"
 
 # CI backend that hosts the release workflow.
