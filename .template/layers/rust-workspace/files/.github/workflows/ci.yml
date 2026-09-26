@@ -27,3 +27,19 @@ jobs:
       - uses: jdx/mise-action@v2
       - uses: Swatinem/rust-cache@v2
       - run: just ci
+
+  # This is the single status check required by the standard P4suta ruleset.
+  required:
+    name: required
+    if: always()
+    needs: [ci]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Fail unless every needed job succeeded or was skipped
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "${RESULTS}"
+          jq -e 'all(.[]; IN("success", "skipped"))' <<< "${RESULTS}"
