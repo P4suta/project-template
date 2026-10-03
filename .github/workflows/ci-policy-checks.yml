@@ -36,6 +36,7 @@ jobs:
           version: 2026.10.0
           install: false
       - name: Prepare the exact native verifier
+        working-directory: ${{ runner.temp }}
         run: mise x rust@1.99.0 cargo:kani-verifier@0.68.0 -- kani setup
       - name: Prove production contracts and reject the false claim
         run: mise x rust@1.99.0 cargo:kani-verifier@0.68.0 -- cargo run --locked --manifest-path .ci/ci-policy/Cargo.toml -- prove --manifest-path .ci/ci-policy/Cargo.toml

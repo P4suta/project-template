@@ -16,8 +16,8 @@ The intent: from `Use this template` to `just lint && just test` in one push.
 
 1. Click **Use this template** on this repository's GitHub page.
 2. Pick a name for your new repository and create it.
-3. The first push runs `.github/workflows/init.yml` and renders the default layers into the `initialized-project` artifact.
-4. Download that artifact and add the rendered files through a normal signed commit and pull request.
+3. The first push runs `.github/workflows/init.yml` and saves the `initialized-project` artifact.
+4. Download its `initialized.patch`, apply it with `git apply --index initialized.patch`, and submit the rendered files and template deletions through a normal signed commit and pull request.
 
 ## Quick start (Path B — local)
 

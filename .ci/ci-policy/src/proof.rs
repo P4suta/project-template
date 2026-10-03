@@ -10,7 +10,8 @@ use serde_json::Value;
 
 use crate::{Conclusion, gate};
 
-pub const HARNESSES: [&str; 8] = [
+pub const HARNESSES: [&str; 9] = [
+    "handoff::proofs::initialization_keeps_exactly_rendered_files",
     "workflow::proofs::read_only_checkout_cannot_retain_credentials",
     "proofs::installed_policy_requires_the_reviewed_revision",
     "proofs::gate_rejection_is_permanent",

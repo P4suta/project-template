@@ -19,6 +19,12 @@ struct Cli {
 }
 
 enum Action {
+    TemplatePatch {
+        root: PathBuf,
+        rendered: PathBuf,
+        engine: PathBuf,
+        output: PathBuf,
+    },
     Audit {
         inventory: PathBuf,
         output: PathBuf,
@@ -96,6 +102,13 @@ impl Cli {
             .version(env!("CARGO_PKG_VERSION"))
             .about("Validate reproducible CI configuration and fail-closed required jobs")
             .subcommand_required(true)
+            .subcommand(
+                Command::new("template-patch")
+                    .arg(root_argument())
+                    .arg(path("rendered"))
+                    .arg(path("engine"))
+                    .arg(path("output")),
+            )
             .subcommand(Command::new("identity"))
             .subcommand(
                 Command::new("activate")
@@ -204,6 +217,12 @@ impl Cli {
                 .context("a required argument is missing")
         };
         let command = match name {
+            "template-patch" => Action::TemplatePatch {
+                root: get_path("root")?,
+                rendered: get_path("rendered")?,
+                engine: get_path("engine")?,
+                output: get_path("output")?,
+            },
             "identity" => Action::Identity,
             "activate" => Action::Activate {
                 root: get_path("root")?,
@@ -314,6 +333,12 @@ struct Job {
 
 fn run() -> Result<()> {
     match Cli::parse()?.command {
+        Action::TemplatePatch {
+            root,
+            rendered,
+            engine,
+            output,
+        } => ci_policy::handoff::patch(&root, &rendered, &engine, &output)?,
         Action::Identity => println!("{}", ci_policy::REVISION),
         Action::Activate { root, expected } => ci_policy::hooks::activate(&root, &expected)?,
         Action::Doctor { root, expected } => ci_policy::hooks::doctor(&root, &expected)?,

@@ -103,7 +103,7 @@ fn git(root: &Path, args: &[&str]) -> Result<Vec<u8>> {
     Ok(output.stdout)
 }
 
-fn paths(bytes: &[u8]) -> Result<Vec<String>> {
+pub(crate) fn paths(bytes: &[u8]) -> Result<Vec<String>> {
     bytes
         .split(|byte| *byte == 0)
         .filter(|name| !name.is_empty())
@@ -152,9 +152,8 @@ fn index_names(root: &Path, tree: &str) -> Result<Vec<String>> {
     }
 }
 
-fn support(path: &str) -> bool {
+fn configuration(path: &str) -> bool {
     path.starts_with(".github/workflows/")
-        || file_kind(path, &[]) == FileKind::Shell
         || matches!(
             path.rsplit('/').next(),
             Some(
@@ -179,14 +178,34 @@ fn support(path: &str) -> bool {
         )
 }
 
+fn support(path: &str) -> bool {
+    configuration(path) || file_kind(path, &[]) == FileKind::Shell
+}
+
+fn selected_paths(bytes: &[u8], selected: impl Fn(&str) -> bool) -> Result<Vec<String>> {
+    let mut names = Vec::new();
+    for raw in bytes
+        .split(|byte| *byte == 0)
+        .filter(|name| !name.is_empty())
+    {
+        if let Ok(name) = std::str::from_utf8(raw)
+            && selected(name)
+        {
+            match paths(raw) {
+                Ok(paths) => names.extend(paths),
+                Err(error) if configuration(name) => return Err(error),
+                Err(_) => {}
+            }
+        }
+    }
+    Ok(names)
+}
+
 fn snapshot(root: &Path, tree: &str, checked_names: &[String]) -> Result<Vec<File>> {
     let checked_names: BTreeSet<_> = checked_names.iter().cloned().collect();
     let mut names = checked_names.clone();
-    names.extend(
-        paths(&git(root, &["ls-tree", "-r", "--name-only", "-z", tree])?)?
-            .into_iter()
-            .filter(|path| support(path)),
-    );
+    let listing = git(root, &["ls-tree", "-r", "--name-only", "-z", tree])?;
+    names.extend(selected_paths(&listing, support)?);
     let mut files = Vec::new();
     let mut total_bytes = 0_u64;
     for path in names {
@@ -203,8 +222,36 @@ fn snapshot(root: &Path, tree: &str, checked_names: &[String]) -> Result<Vec<Fil
             entries.len() == 1,
             "{path}: the index is unresolved or incomplete"
         );
+        if entries[0].starts_with(b"160000 commit ") {
+            let header = std::str::from_utf8(entries[0])?
+                .split_once('\t')
+                .context("Gitlink metadata is incomplete")?
+                .0;
+            let revision = header
+                .split_whitespace()
+                .nth(2)
+                .context("Gitlink revision is missing")?;
+            ensure!(
+                exact_hash(revision.as_bytes(), 40),
+                "Gitlink revision is invalid"
+            );
+            ensure!(
+                !path.starts_with(".github/"),
+                "workflow dependencies require available checked source"
+            );
+            files.push(File {
+                checked: checked_names.contains(&path),
+                path,
+                bytes: format!("Gitlink revision: {revision}\n").into_bytes(),
+                kind: FileKind::Other,
+            });
+            continue;
+        }
         let regular = entries[0].starts_with(b"100644 ") || entries[0].starts_with(b"100755 ");
         let link = entries[0].starts_with(b"120000 ");
+        if link && !configuration(&path) && !checked_names.contains(&path) {
+            continue;
+        }
         ensure!(
             regular || link,
             "{path}: a checked file must be a regular tracked file"
@@ -232,7 +279,7 @@ fn snapshot(root: &Path, tree: &str, checked_names: &[String]) -> Result<Vec<Fil
             "workflow links cannot establish checked source coverage"
         );
         ensure!(
-            !link || !support(&path),
+            !link || !configuration(&path),
             "verification configuration must be a regular tracked file"
         );
         let checked = checked_names.contains(&path);
@@ -310,13 +357,10 @@ pub fn verify_workflows(root: &Path) -> Result<()> {
         exact_hash(revision.as_bytes(), 40),
         "workflow revision is invalid"
     );
-    let names: Vec<_> = paths(&git(
-        root,
-        &["ls-tree", "-r", "--name-only", "-z", revision],
-    )?)?
-    .into_iter()
-    .filter(|path| matches!(file_kind(path, &[]), FileKind::Workflow | FileKind::Action))
-    .collect();
+    let names = selected_paths(
+        &git(root, &["ls-tree", "-r", "--name-only", "-z", revision])?,
+        |path| matches!(file_kind(path, &[]), FileKind::Workflow | FileKind::Action),
+    )?;
     ensure!(
         names
             .iter()
@@ -331,68 +375,98 @@ pub fn verify_push(root: &Path, remote_name: &str, input: &str) -> Result<()> {
         input.len() <= 64 * 1024,
         "push ref input exceeds the verification budget"
     );
-    let remote_pattern = remote_pattern(remote_name)?;
+    remote_pattern(remote_name)?;
     if input.trim().is_empty() {
         return verify_skill_maintenance();
     }
     for line in input.lines().filter(|line| !line.trim().is_empty()) {
         let update = PushUpdate::parse(line)?;
-        let revision = update.local_revision();
-        let mut names = BTreeSet::new();
-        let log_options = if let Some(previous) = update.remote_revision() {
+        verify(root, &push_scope(root, remote_name, &update)?)?;
+    }
+    Ok(())
+}
+
+pub fn introduced_commits(root: &Path, remote: &str, update: &PushUpdate) -> Result<Vec<String>> {
+    let remote = remote_pattern(remote)?;
+    let range = match update.remote_revision() {
+        Some(previous) => format!("{previous}..{}", update.local_revision()),
+        None => update.local_revision().to_owned(),
+    };
+    let bytes = git(
+        root,
+        &["rev-list", "--max-count=1001", &range, "--not", &remote],
+    )?;
+    let commits: Vec<_> = std::str::from_utf8(&bytes)?
+        .lines()
+        .map(str::to_owned)
+        .collect();
+    ensure!(
+        commits.len() <= 1000,
+        "push exceeds the 1000-commit verification budget"
+    );
+    ensure!(
+        commits
+            .iter()
+            .all(|revision| exact_hash(revision.as_bytes(), 40)),
+        "Git returned an invalid commit identity"
+    );
+    Ok(commits)
+}
+
+fn push_scope<'a>(root: &Path, remote: &str, update: &'a PushUpdate) -> Result<Scope<'a>> {
+    remote_pattern(remote)?;
+    let revision = update.local_revision();
+    let mut names = BTreeSet::new();
+    let commits = introduced_commits(root, remote, update)?;
+    let range = if let Some(previous) = update.remote_revision() {
+        names.extend(paths(&git(
+            root,
+            &[
+                "diff",
+                "--name-only",
+                "--diff-filter=ACMR",
+                "-z",
+                previous,
+                revision,
+                "--",
+            ],
+        )?)?);
+        format!("{previous}..{revision}")
+    } else {
+        for commit in commits {
             names.extend(paths(&git(
                 root,
                 &[
-                    "diff",
+                    "diff-tree",
+                    "--root",
+                    "--no-commit-id",
                     "--name-only",
                     "--diff-filter=ACMR",
+                    "-r",
+                    "-m",
                     "-z",
-                    previous,
-                    revision,
+                    &commit,
                     "--",
                 ],
             )?)?);
-            format!("{previous}..{revision}")
-        } else {
-            let commits = git(root, &["rev-list", revision, "--not", &remote_pattern])?;
-            let commits = std::str::from_utf8(&commits)?.lines().collect::<Vec<_>>();
-            ensure!(
-                commits.len() <= 1000,
-                "new branch exceeds the 1000-commit verification budget"
-            );
-            for commit in commits {
-                ensure!(
-                    exact_hash(commit.as_bytes(), 40),
-                    "Git returned an invalid commit identity"
-                );
-                names.extend(paths(&git(
-                    root,
-                    &[
-                        "diff-tree",
-                        "--root",
-                        "--no-commit-id",
-                        "--name-only",
-                        "--diff-filter=ACMR",
-                        "-r",
-                        "-m",
-                        "-z",
-                        commit,
-                        "--",
-                    ],
-                )?)?);
-            }
-            format!("{revision} --not --remotes={remote_name}")
-        };
-        verify(
-            root,
-            &Scope::Revision {
-                revision,
-                names: names.into_iter().collect(),
-                log_options,
-            },
-        )?;
-    }
-    Ok(())
+        }
+        revision.to_owned()
+    };
+    Ok(Scope::Revision {
+        revision,
+        names: names.into_iter().collect(),
+        log_options: format!("{range} --not --remotes={remote}"),
+    })
+}
+
+pub fn pushed_files(root: &Path, remote: &str, update: &PushUpdate) -> Result<Vec<File>> {
+    let Scope::Revision {
+        revision, names, ..
+    } = push_scope(root, remote, update)?
+    else {
+        unreachable!()
+    };
+    snapshot(root, revision, &names)
 }
 
 fn verify(root: &Path, scope: &Scope<'_>) -> Result<()> {

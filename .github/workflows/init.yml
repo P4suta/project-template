@@ -46,11 +46,22 @@ jobs:
             apply --project-name "$PROJECT_NAME" --project-owner "$PROJECT_OWNER" \
             --project-description "${PROJECT_DESCRIPTION:-}"
       - name: Preserve rendered files for a normal reviewed commit
+        id: policy
+        if: steps.gate.outputs.render == 'true'
+        uses: $/.github/actions/ci-policy
+      - name: Produce the complete initialization patch
+        if: steps.gate.outputs.render == 'true'
+        env:
+          POLICY: ${{ steps.policy.outputs.executable }}
+          PROJECT_DESTINATION: ${{ runner.temp }}/initialized-project
+          PROJECT_PATCH: ${{ runner.temp }}/initialized.patch
+        run: '"$POLICY" template-patch --rendered "$PROJECT_DESTINATION" --engine .template/tmpl/target/release/tmpl --output "$PROJECT_PATCH"'
+      - name: Preserve the reviewed initialization patch
         if: steps.gate.outputs.render == 'true'
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: initialized-project
-          path: ${{ runner.temp }}/initialized-project
+          path: ${{ runner.temp }}/initialized.patch
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 7

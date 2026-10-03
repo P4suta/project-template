@@ -9,7 +9,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{REVISION, exact_hash, local::PushUpdate, same_revision};
+use crate::{REVISION, local::PushUpdate, same_revision};
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -167,15 +167,50 @@ fn repository_hook(
     if !configured {
         return Ok(());
     }
-    let output = Command::new("mise")
+    let listing = Command::new("mise")
         .current_dir(root)
-        .args(["which", "lefthook"])
+        .args(["ls", "--current", "--json", "lefthook"])
         .output()?;
     ensure!(
-        output.status.success(),
-        "configured repository requires its pinned Lefthook executable"
+        listing.status.success(),
+        "configured Lefthook identity could not be established"
     );
-    let path = PathBuf::from(std::str::from_utf8(&output.stdout)?.trim());
+    let listing = crate::json::parse(&listing.stdout)?;
+    let configured = !listing
+        .as_array()
+        .context("Lefthook identities must be an array")?
+        .is_empty();
+    let path = if configured {
+        let output = Command::new("mise")
+            .current_dir(root)
+            .args(["which", "lefthook"])
+            .output()?;
+        ensure!(
+            output.status.success(),
+            "configured repository requires its pinned Lefthook executable"
+        );
+        PathBuf::from(std::str::from_utf8(&output.stdout)?.trim())
+    } else {
+        let search = std::env::var_os("PATH").context("system executable path is unavailable")?;
+        std::env::split_paths(&search)
+            .map(|path| {
+                path.join(if cfg!(windows) {
+                    "lefthook.exe"
+                } else {
+                    "lefthook"
+                })
+            })
+            .find(|path| {
+                path.is_file()
+                    && path.canonicalize().ok().is_some_and(|target| {
+                        !matches!(
+                            target.file_stem().and_then(|name| name.to_str()),
+                            Some("mise")
+                        )
+                    })
+            })
+            .context("configured repository requires its native Lefthook executable")?
+    };
     ensure!(
         path.is_absolute() && path.is_file(),
         "repository Lefthook executable is unavailable"
@@ -263,40 +298,12 @@ pub fn push(root: &Path, expected: &str, remote: &str, url: &str, input: &str) -
         .collect::<Result<_>>()?;
     for update in updates {
         let revision = update.local_revision();
-        let revisions = if let Some(previous) = update.remote_revision() {
+        if let Some(previous) = update.remote_revision() {
             git(&root, &["merge-base", "--is-ancestor", previous, revision])
                 .context("a non-fast-forward push is prohibited")?;
-            git(
-                &root,
-                &[
-                    "rev-list",
-                    "--max-count=1001",
-                    &format!("{previous}..{revision}"),
-                ],
-            )?
-        } else {
-            git(
-                &root,
-                &[
-                    "rev-list",
-                    "--max-count=1001",
-                    revision,
-                    "--not",
-                    &format!("--remotes={remote}"),
-                ],
-            )?
-        };
-        let revisions = std::str::from_utf8(&revisions)?.lines().collect::<Vec<_>>();
-        ensure!(
-            revisions.len() <= 1000,
-            "push exceeds the 1000-commit verification budget"
-        );
-        for revision in revisions {
-            ensure!(
-                exact_hash(revision.as_bytes(), 40),
-                "Git returned an invalid commit identity"
-            );
-            git(&root, &["verify-commit", revision])
+        }
+        for revision in crate::local::introduced_commits(&root, remote, &update)? {
+            git(&root, &["verify-commit", &revision])
                 .context("unsigned or unverifiable commits cannot be pushed")?;
         }
     }

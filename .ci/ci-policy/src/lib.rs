@@ -71,6 +71,7 @@ pub fn immutable_reference(reference: &str) -> bool {
         .is_some_and(|(path, revision)| safe_path(path, 2) && exact_hash(revision.as_bytes(), 40))
 }
 
+pub mod handoff;
 pub mod hooks;
 pub mod json;
 pub mod local;
