@@ -134,8 +134,8 @@ audit:
     mise exec -- cargo deny --manifest-path {{ENGINE_MANIFEST}} check
 
 # Engine-side template-self-CI: manifest + DAG soundness over every layer.
-verify-template: engine-build
-    .template/tmpl/target/release/tmpl verify
+verify-template:
+    mise x -- cargo run --locked --manifest-path {{ENGINE_MANIFEST}} --release -- verify
 
 # ---------------------------------------------------------------------------
 # Aggregate gates
