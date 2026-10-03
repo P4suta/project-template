@@ -26,11 +26,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  policy:
+    uses: $/.github/workflows/common-policy.yml
+
+  policy-code:
+    uses: $/.github/workflows/ci-policy-checks.yml
+
   lint:
     name: Lint (fmt + clippy + typos + actionlint)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
@@ -51,14 +60,25 @@ jobs:
         uses: crate-ci/typos@bee27e3a4fd1ea2111cf90ab89cd076c870fce14 # master
 
       - name: actionlint
-        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
+        uses: $/.github/actions/ci-policy
+        id: policy-command
+
+      - name: Check workflow syntax with the pinned grammar adapter
+        env:
+          POLICY: ${{ steps.policy-command.outputs.executable }}
+        run: |
+          "$POLICY" install-tools --workflow-only
+          "$POLICY" actionlint .
 
   test:
     name: cargo nextest run
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: lint
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
@@ -76,9 +96,12 @@ jobs:
     # bumped in the Justfile.
     name: cargo llvm-cov (regions ≥ 94 %, target 96 %)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: test
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
@@ -99,9 +122,12 @@ jobs:
   verify:
     name: tmpl verify + end-to-end smoke
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: test
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
@@ -149,9 +175,12 @@ jobs:
   audit:
     name: cargo deny check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: test
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
@@ -165,18 +194,20 @@ jobs:
 
   # The one status check branch protection requires,
   # named the same in every P4suta repository.
-  # It passes only when every job it needs succeeded or was skipped.
+  # Every unconditional dependency must succeed.
   required:
     name: required
     if: always()
-    needs: [lint, test, coverage, verify, audit]
+    needs: [lint, test, coverage, verify, audit, policy, policy-code]
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions: {}
     steps:
-      - name: Fail unless every needed job succeeded or was skipped
+      - id: policy
+        uses: $/.github/actions/ci-policy
+      - name: Require every engine and policy check
         env:
-          RESULTS: ${{ toJSON(needs.*.result) }}
+          POLICY: ${{ steps.policy.outputs.executable }}
+          RESULTS: ${{ toJSON(needs) }}
         run: |
-          echo "${RESULTS}"
-          jq -e 'all(.[]; IN("success", "skipped"))' <<< "${RESULTS}"
+          "$POLICY" gate --needs "$RESULTS" --require-json '["lint", "test", "coverage", "verify", "audit", "policy", "policy-code"]'

@@ -1,0 +1,9 @@
+{
+  "actionlint": { "tool": "actionlint", "version": "1.7.12" },
+  "gitleaks": { "tool": "gitleaks", "version": "8.30.1" },
+  "pwsh": { "tool": "powershell", "version": "7.6.5" },
+  "shellcheck": { "tool": "shellcheck", "version": "0.11.0" },
+  "taplo": { "tool": "taplo", "version": "0.10.0" },
+  "typos": { "tool": "typos", "version": "1.50.3" },
+  "zizmor": { "tool": "zizmor", "version": "1.30.1" }
+}

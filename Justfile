@@ -54,7 +54,7 @@ typos:
     typos
 
 actionlint:
-    actionlint
+    mise x rust@1.99.0 -- cargo run --locked --manifest-path .ci/ci-policy/Cargo.toml -- actionlint .
 
 yamllint:
     @if command -v yamllint >/dev/null 2>&1; then \
