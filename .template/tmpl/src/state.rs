@@ -21,6 +21,8 @@ use toml_edit::ser as toml_ser;
 use crate::error::TmplError;
 use crate::layer::{LayerName, Patch, RenderedFile, RenderedPath};
 
+mod hex;
+
 /// 32-byte BLAKE3 content hash. The `Default` value (all zeros) is the
 /// "empty repository" Merkle root — handy for `State::default()` on
 /// fresh checkouts before any layer has been applied.
@@ -52,25 +54,12 @@ impl ContentHash {
     /// * [`HashParseError::Length`] when `s` is not exactly 64 chars.
     /// * [`HashParseError::Digit`] when `s` contains a non-hex byte.
     pub fn from_hex(s: &str) -> Result<Self, HashParseError> {
-        if s.len() != 64 {
-            return Err(HashParseError::Length);
-        }
-        let mut out = [0u8; 32];
-        for (i, chunk) in s.as_bytes().chunks_exact(2).enumerate() {
-            let hi = hex_nibble(chunk[0]).ok_or(HashParseError::Digit(chunk[0]))?;
-            let lo = hex_nibble(chunk[1]).ok_or(HashParseError::Digit(chunk[1]))?;
-            out[i] = (hi << 4) | lo;
-        }
-        Ok(Self(out))
-    }
-}
-
-fn hex_nibble(b: u8) -> Option<u8> {
-    match b {
-        b'0'..=b'9' => Some(b - b'0'),
-        b'a'..=b'f' => Some(b - b'a' + 10),
-        b'A'..=b'F' => Some(b - b'A' + 10),
-        _ => None,
+        hex::decode(s.as_bytes())
+            .map(Self)
+            .map_err(|error| match error {
+                hex::Error::Length => HashParseError::Length,
+                hex::Error::Digit(byte) => HashParseError::Digit(byte),
+            })
     }
 }
 
@@ -651,7 +640,7 @@ mod tests {
     fn applied_paths_returns_empty_for_default_state() {
         let state = State::default();
         let paths = applied_paths(&state);
-        assert!(paths.is_empty());
+        assert_eq!(paths, Vec::<&RenderedPath>::new());
     }
 
     #[test]

@@ -221,8 +221,8 @@ mod tests {
         let m = Manifest::load(&p).expect("minimal manifest is valid");
         assert_eq!(m.schema_version, 1);
         assert_eq!(m.engine_version.as_str(), "0.1.0");
-        assert!(m.default_selection.is_empty());
-        assert!(m.variables.is_empty());
+        assert_eq!(m.default_selection, Vec::new());
+        assert_eq!(m.variables, Vec::new());
     }
 
     #[test]

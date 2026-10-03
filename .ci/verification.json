@@ -69,7 +69,7 @@
         "--check"
       ],
       "tools": [
-        "rust@1.95.0"
+        "rust@1.99.0"
       ],
       "timeout_seconds": 10,
       "inputs": [
@@ -176,7 +176,7 @@
         "warnings"
       ],
       "tools": [
-        "rust@1.95.0"
+        "rust@1.99.0"
       ],
       "timeout_seconds": 180,
       "inputs": [
@@ -202,8 +202,8 @@
         ".template/tmpl/Cargo.toml"
       ],
       "tools": [
-        "rust@1.95.0",
-        "cargo:cargo-nextest@0.9.145"
+        "rust@1.99.0",
+        "cargo:cargo-nextest@0.9.146"
       ],
       "timeout_seconds": 180,
       "inputs": [
@@ -231,7 +231,7 @@
         "--summary-only"
       ],
       "tools": [
-        "rust@1.95.0",
+        "rust@1.99.0",
         "cargo:cargo-llvm-cov@0.9.1"
       ],
       "timeout_seconds": 300,
@@ -258,7 +258,7 @@
         "check"
       ],
       "tools": [
-        "rust@1.95.0",
+        "rust@1.99.0",
         "cargo:cargo-deny@0.20.2"
       ],
       "timeout_seconds": 90,
@@ -287,7 +287,7 @@
         "verify"
       ],
       "tools": [
-        "rust@1.95.0"
+        "rust@1.99.0"
       ],
       "timeout_seconds": 180,
       "inputs": [
@@ -319,6 +319,62 @@
       ],
       "environment": [],
       "cache": "content"
+    },
+    {
+      "id": "engine-proofs",
+      "phase": "development",
+      "platforms": [
+        "linux",
+        "macos"
+      ],
+      "command": [
+        "ci-policy",
+        "prove-source",
+        "--source",
+        ".template/tmpl/src/state/hex.rs",
+        "--require-json",
+        "[\"production::proofs::nibble_accepts_exactly_ascii_hexadecimal_digits\",\"production::proofs::decoder_preserves_every_byte_and_rejects_invalid_digits\"]",
+        "--counterexample",
+        "production::proofs::reject_invalid_digit_probe"
+      ],
+      "tools": [
+        "rust@1.99.0",
+        "cargo:kani-verifier@0.68.0"
+      ],
+      "timeout_seconds": 120,
+      "inputs": [
+        ".template/"
+      ],
+      "environment": [],
+      "cache": "content"
+    },
+    {
+      "id": "engine-path-proofs",
+      "phase": "development",
+      "platforms": [
+        "linux",
+        "macos"
+      ],
+      "command": [
+        "ci-policy",
+        "prove-source",
+        "--source",
+        ".template/tmpl/src/layer/path.rs",
+        "--require-json",
+        "[\"production::proofs::portable_roots_cannot_be_admitted_as_relative\"]",
+        "--counterexample",
+        "production::proofs::reject_rooted_path_probe"
+      ],
+      "tools": [
+        "rust@1.99.0",
+        "cargo:kani-verifier@0.68.0"
+      ],
+      "timeout_seconds": 120,
+      "inputs": [
+        ".template/"
+      ],
+      "environment": [],
+      "cache": "content"
     }
   ],
   "ci": [
@@ -336,7 +392,9 @@
       "workflow": "ci-policy-checks.yml",
       "job": "proofs",
       "checks": [
-        "policy-proofs"
+        "policy-proofs",
+        "engine-proofs",
+        "engine-path-proofs"
       ]
     },
     {

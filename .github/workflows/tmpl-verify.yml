@@ -35,22 +35,22 @@ jobs:
         with:
           version: 2026.10.0
           install: false
-      - run: mise install rust@1.95.0 just@1.58.0 typos@1.50.3
+      - run: mise install rust@1.99.0 just@1.58.0 typos@1.50.3
       - uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
         with:
-          tool: cargo-nextest@0.9.145,cargo-deny@0.20.2
+          tool: cargo-nextest@0.9.146,cargo-deny@0.20.2
           fallback: none
       - name: Register verified Cargo extensions
         shell: bash
         run: |
-          mise link cargo:cargo-nextest@0.9.145 "$HOME/.cargo"
+          mise link cargo:cargo-nextest@0.9.146 "$HOME/.cargo"
           mise link cargo:cargo-deny@0.20.2 "$HOME/.cargo"
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: |
             .ci/ci-policy -> ../../target
             .template/tmpl -> ../../target
-          cmd-format: mise x rust@1.95.0 -- {0}
+          cmd-format: mise x rust@1.99.0 -- {0}
           cache-bin: false
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - id: policy
@@ -68,8 +68,8 @@ jobs:
         with:
           version: 2026.10.0
           install: false
-      - run: mise install rust@1.95.0 just@1.58.0
-      - run: mise x rust@1.95.0 -- rustup component add llvm-tools-preview --toolchain 1.95.0
+      - run: mise install rust@1.99.0 just@1.58.0
+      - run: mise x rust@1.99.0 -- rustup component add llvm-tools-preview --toolchain 1.99.0
       - uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
         with:
           tool: cargo-llvm-cov@0.9.1
@@ -82,7 +82,7 @@ jobs:
           workspaces: |
             .ci/ci-policy -> ../../target
             .template/tmpl -> ../../target
-          cmd-format: mise x rust@1.95.0 -- {0}
+          cmd-format: mise x rust@1.99.0 -- {0}
           cache-bin: false
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - id: policy

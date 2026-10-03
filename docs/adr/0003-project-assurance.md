@@ -37,5 +37,7 @@ Retain hosted permissions and release protections; ordinary project verification
 Kani imports production decisions for phase selection, exact evidence reuse, cumulative budgets, complete coverage, deadline outcomes, and permitted Cargo operations.
 Required proof inventories include reachable covers and a deliberately false claim that must fail with the expected assertion.
 Native integration tests exercise staged HEAD identity, pushed revisions, cache invalidation, missing contracts, CI bypass attempts, and descendant cleanup after success, failure, and timeout.
+Engine proofs check every 64-byte hash input and portable path validation for arbitrary byte strings up to 32 bytes, with complete unwinding and independent component checks.
+Native tests exercise the public path constructor and deserialization boundary on Mac and Windows.
 The filesystem, Git, mise, parsers, cryptographic hash implementation, operating system process isolation, tool outputs, and each project's implementation remain external trust boundaries.
 Checks must declare their relevant input and environment dependencies; a receipt does not prove undeclared external behavior or malicious subprocess isolation.

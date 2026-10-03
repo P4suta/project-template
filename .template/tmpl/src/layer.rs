@@ -9,11 +9,14 @@
 use std::fmt;
 
 use camino::Utf8PathBuf;
+use serde::de::Error as DeError;
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 
 use crate::ctx::Context;
 use crate::error::TmplError;
+
+mod path;
 
 // ---------------------------------------------------------------------------
 // Newtypes — encode invariants in the type system rather than at call sites.
@@ -118,8 +121,15 @@ pub enum NameError {
 
 /// A relative, normalised, UTF-8 path inside the destination repository.
 /// Absolute paths and `..` traversal are rejected at construction time.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
 pub struct RenderedPath(Utf8PathBuf);
+
+impl<'de> Deserialize<'de> for RenderedPath {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let input = Utf8PathBuf::deserialize(deserializer)?;
+        Self::new(input).map_err(D::Error::custom)
+    }
+}
 
 impl RenderedPath {
     /// Validate and wrap a path. The path must be relative, non-empty,
@@ -132,18 +142,12 @@ impl RenderedPath {
     /// * [`PathError::Traversal`] when the path contains `..`.
     pub fn new(p: impl Into<Utf8PathBuf>) -> Result<Self, PathError> {
         let p = p.into();
-        if p.as_str().is_empty() {
-            return Err(PathError::Empty);
+        match path::validate(p.as_str().as_bytes()) {
+            Ok(()) => Ok(Self(p)),
+            Err(path::Error::Empty) => Err(PathError::Empty),
+            Err(path::Error::Absolute) => Err(PathError::Absolute(p)),
+            Err(path::Error::Traversal) => Err(PathError::Traversal(p)),
         }
-        if p.is_absolute() {
-            return Err(PathError::Absolute(p));
-        }
-        if p.components()
-            .any(|c| matches!(c, camino::Utf8Component::ParentDir))
-        {
-            return Err(PathError::Traversal(p));
-        }
-        Ok(Self(p))
     }
 
     /// Borrow the underlying path.
@@ -319,6 +323,39 @@ mod tests {
     fn rendered_path_rejects_absolute() {
         let err = RenderedPath::new("/etc/passwd").expect_err("must reject absolute");
         assert!(matches!(err, PathError::Absolute(_)));
+    }
+
+    #[test]
+    fn rendered_paths_reject_roots_and_traversal_from_every_platform() {
+        for input in [
+            "/etc/passwd",
+            "\\root",
+            "C:\\root",
+            "C:relative",
+            "\\\\server\\share",
+        ] {
+            assert!(
+                matches!(RenderedPath::new(input), Err(PathError::Absolute(_))),
+                "{input}"
+            );
+        }
+        for input in ["safe/../escape", "safe\\..\\escape", "safe\\../escape"] {
+            assert!(
+                matches!(RenderedPath::new(input), Err(PathError::Traversal(_))),
+                "{input}"
+            );
+        }
+    }
+
+    #[test]
+    fn rendered_path_deserialization_preserves_constructor_invariants() {
+        for input in ["", "/etc/passwd", "C:relative", "safe\\..\\escape"] {
+            serde_json::from_value::<RenderedPath>(serde_json::json!(input))
+                .expect_err("invalid path must retain constructor validation");
+        }
+        let path =
+            serde_json::from_str::<RenderedPath>("\"docs/adr/0001.md\"").expect("relative path");
+        assert_eq!(path.as_path().as_str(), "docs/adr/0001.md");
     }
 
     #[test]

@@ -13,7 +13,8 @@ use crate::{Conclusion, gate};
 mod source;
 pub use source::validate_source;
 
-pub const HARNESSES: [&str; 17] = [
+pub const HARNESSES: [&str; 18] = [
+    "proof::proofs::library_namespaces_cannot_admit_project_functions",
     "proof::source::proofs::macro_recognition_requires_bang_and_delimited_arguments",
     "project::protocol::proofs::reuse_requires_applicable_exact_success",
     "project::protocol::proofs::uncovered_or_empty_ci_cannot_complete",
@@ -67,7 +68,8 @@ fn checked_property(check: &Value) -> bool {
         check["location"]["file"].as_str(),
     ) {
         (Some(function), Some(file))
-            if function.starts_with("std::") && file.contains("/lib/rustlib/src/rust/library/") =>
+            if library_function(function.as_bytes())
+                && file.contains("/lib/rustlib/src/rust/library/") =>
         {
             PropertySource::StandardLibrary
         }
@@ -79,6 +81,10 @@ fn checked_property(check: &Value) -> bool {
         _ => PropertySource::Contract,
     };
     property_checked(state, source)
+}
+
+fn library_function(name: &[u8]) -> bool {
+    name.starts_with(b"std::") || name.starts_with(b"core::") || name.starts_with(b"alloc::")
 }
 
 fn sources(root: &Path) -> Result<BTreeMap<std::path::PathBuf, Vec<u8>>> {
@@ -197,7 +203,26 @@ pub fn validate_results(value: &Value, expected: &[&str], counterexample: bool) 
 
 #[cfg(kani)]
 mod proofs {
-    use super::{PropertySource, PropertyState, property_checked};
+    use super::{PropertySource, PropertyState, library_function, property_checked};
+
+    #[kani::proof]
+    #[kani::unwind(33)]
+    fn library_namespaces_cannot_admit_project_functions() {
+        let bytes: [u8; 32] = kani::any();
+        let length: u8 = kani::any();
+        kani::assume(length <= 32);
+        let length = usize::from(length);
+        let accepted = library_function(&bytes[..length]);
+        assert_eq!(
+            accepted,
+            length >= 5 && bytes[..5] == *b"std::"
+                || length >= 6 && bytes[..6] == *b"core::"
+                || length >= 7 && bytes[..7] == *b"alloc::"
+        );
+        assert!(!library_function(b"production::core::guard"));
+        kani::cover!(accepted);
+        kani::cover!(!accepted);
+    }
     #[kani::proof]
     fn proof_contracts_must_be_reachable() {
         let state: PropertyState = kani::any();

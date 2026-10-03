@@ -329,7 +329,7 @@ mod tests {
     fn resolve_handles_empty_selection() {
         let reg = registry(vec![meta("core", &[], &[], &[])]);
         let plan = resolve(&[], &reg).expect("empty selection is fine");
-        assert!(plan.order.is_empty());
+        assert_eq!(plan.order, Vec::new());
         assert!(plan.provider_of.is_empty());
     }
 
@@ -440,7 +440,7 @@ mod tests {
     fn verify_registry_flags_asymmetric_conflicts() {
         let reg = registry(vec![meta("a", &[], &[], &["b"]), meta("b", &[], &[], &[])]);
         let report = verify_registry(&reg);
-        assert!(!report.errors.is_empty());
+        assert_ne!(report.errors, Vec::new());
     }
 
     #[test]
@@ -465,7 +465,7 @@ mod tests {
             meta("b", &[], &[], &["a"]),
         ]);
         let report = verify_registry(&reg);
-        assert!(report.errors.is_empty());
+        assert_eq!(report.errors, Vec::new());
     }
 
     #[test]

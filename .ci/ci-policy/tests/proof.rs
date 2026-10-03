@@ -85,3 +85,22 @@ fn unreachable_contract_is_not_confused_with_an_unreachable_library_guard() {
     property["location"]["file"] = json!("library/kani_core/src/models.rs");
     assert!(validate_results(&receipt, &["required"], false).is_ok());
 }
+
+#[test]
+fn standard_library_guards_require_the_library_namespace_and_source() {
+    let mut receipt = json!({"verification_results":{"summary":{"status":"completed","executed":1,"failed":0,"successful":1},"results":[{"harness_id":"required","status":"Success","checks":[{"category":"assertion","status":"Success"},{"category":"cover","status":"Satisfied"},{"category":"cover","status":"Satisfied"},{"category":"assertion","status":"Unreachable","function":"core::num::<impl usize>::is_multiple_of","location":{"file":"/toolchain/lib/rustlib/src/rust/library/core/src/num/uint_macros.rs"}}]}]}});
+    for function in ["core::num::guard", "alloc::vec::guard", "std::ptr::guard"] {
+        receipt["verification_results"]["results"][0]["checks"][3]["function"] = json!(function);
+        assert!(
+            validate_results(&receipt, &["required"], false).is_ok(),
+            "{function}"
+        );
+    }
+    receipt["verification_results"]["results"][0]["checks"][3]["function"] =
+        json!("production::core::guard");
+    assert!(validate_results(&receipt, &["required"], false).is_err());
+    receipt["verification_results"]["results"][0]["checks"][3]["function"] = json!("core::guard");
+    receipt["verification_results"]["results"][0]["checks"][3]["location"]["file"] =
+        json!("src/lib.rs");
+    assert!(validate_results(&receipt, &["required"], false).is_err());
+}

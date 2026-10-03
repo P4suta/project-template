@@ -236,7 +236,7 @@ mod tests {
     fn strip_j2_suffix_handles_nested() {
         let (t, d) = strip_j2_suffix(Utf8Path::new("docs/README.md.j2"));
         assert!(t);
-        assert_eq!(d.as_str(), "docs/README.md");
+        assert_eq!(d, Utf8PathBuf::from("docs/README.md"));
     }
 
     #[test]
@@ -364,7 +364,7 @@ mod tests {
         .expect("write layer.toml");
         let layer = FilesystemLayer::load(&layer_dir).expect("load");
         let patch = layer.render(&Context::for_test("p", "o")).expect("render");
-        assert!(patch.files.is_empty());
+        assert_eq!(patch.files, Vec::new());
     }
 
     #[test]
