@@ -1,0 +1,31 @@
+[package]
+name = "ci-policy"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[features]
+counterexample = []
+
+[dependencies]
+anyhow = "1.0"
+clap = "4.6"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+yaml-rust2 = "0.13"
+tempfile = "3.27"
+yaml-edit = "0.3.2"
+sha2 = "0.10"
+
+[lints.rust]
+unsafe_code = "forbid"
+unfulfilled_lint_expectations = "deny"
+unexpected_cfgs = { level = "deny", check-cfg = ['cfg(kani)'] }
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+allow_attributes = "forbid"
+
+[workspace]

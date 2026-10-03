@@ -16,10 +16,8 @@ The intent: from `Use this template` to `just lint && just test` in one push.
 
 1. Click **Use this template** on this repository's GitHub page.
 2. Pick a name for your new repository and create it.
-3. The first push triggers `.github/workflows/init.yml`, which builds the
-   `tmpl` engine inside a container, runs `tmpl apply` against the default
-   layer set, and commits the result as `chore: initialize from template`.
-4. Pull the new commit; you now have a fully scaffolded repository.
+3. The first push runs `.github/workflows/init.yml` and saves the `initialized-project` artifact.
+4. Download its `initialized.patch`, apply it with `git apply --index initialized.patch`, and submit the rendered files and template deletions through a normal signed commit and pull request.
 
 ## Quick start (Path B — local)
 

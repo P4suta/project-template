@@ -1,0 +1,28 @@
+name: Build common development policy
+description: Build the Rust policy command from this action's exact source revision.
+outputs:
+  executable:
+    description: Absolute path to the compiled policy command.
+    value: ${{ steps.build.outputs.executable }}
+runs:
+  using: composite
+  steps:
+    - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+      with:
+        version: 2026.10.0
+        install: false
+    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      with:
+        workspaces: ${{ github.action_path }}/../../../.ci/ci-policy -> target
+        cmd-format: mise x rust@1.99.0 -- {0}
+        cache-bin: false
+        save-if: ${{ github.ref == 'refs/heads/main' }}
+    - id: build
+      shell: bash
+      env:
+        POLICY_SOURCE: ${{ github.action_path }}/../../..
+        POLICY_OUTPUT: ${{ runner.temp }}/ci-policy
+        CARGO_BUILD_JOBS: "2"
+      run: |
+        mise x rust@1.99.0 -- cargo install --locked --path "$POLICY_SOURCE/.ci/ci-policy" --root "$POLICY_OUTPUT"
+        printf 'executable=%s/bin/ci-policy\n' "$POLICY_OUTPUT" >> "$GITHUB_OUTPUT"

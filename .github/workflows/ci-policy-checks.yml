@@ -1,0 +1,61 @@
+name: Policy implementation assurance
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  quality:
+    name: Native policy quality (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          toolchain: 1.99.0
+          components: rustfmt,clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: .ci/ci-policy -> target
+          cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo fmt --manifest-path .ci/ci-policy/Cargo.toml --check
+      - run: cargo clippy --locked --all-targets --all-features --manifest-path .ci/ci-policy/Cargo.toml -- -D warnings
+      - run: cargo test --locked --all-targets --manifest-path .ci/ci-policy/Cargo.toml
+  proofs:
+    name: Production policy proofs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          version: 2026.10.0
+          install: false
+      - name: Prepare the exact native verifier
+        working-directory: ${{ runner.temp }}
+        run: mise x rust@1.99.0 cargo:kani-verifier@0.68.0 -- kani setup
+      - name: Prove production contracts and reject the false claim
+        run: mise x rust@1.99.0 cargo:kani-verifier@0.68.0 -- cargo run --locked --manifest-path .ci/ci-policy/Cargo.toml -- prove --manifest-path .ci/ci-policy/Cargo.toml
+  verified:
+    name: Policy implementation verified
+    if: always()
+    needs: [quality, proofs]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - id: policy
+        uses: $/.github/actions/ci-policy
+      - name: Require every native check and proof
+        env:
+          POLICY: ${{ steps.policy.outputs.executable }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: '"$POLICY" gate --needs "$RESULTS" --require-json ''["quality", "proofs"]'''

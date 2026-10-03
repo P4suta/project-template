@@ -1,0 +1,24 @@
+name: Common development policy
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  policy:
+    name: Common development policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: policy
+        uses: $/.github/actions/ci-policy
+      - name: Install pinned workflow validators
+        env:
+          POLICY: ${{ steps.policy.outputs.executable }}
+        run: '"$POLICY" install-tools --workflow-only'
+      - name: Verify the caller's committed workflows and actions
+        env:
+          POLICY: ${{ steps.policy.outputs.executable }}
+        run: '"$POLICY" check .'
