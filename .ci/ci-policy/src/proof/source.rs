@@ -55,8 +55,10 @@ fn closed_tokens(tokens: TokenStream) -> bool {
         match token {
             TokenTree::Group(group) if !closed_tokens(group.stream()) => return false,
             TokenTree::Ident(name)
-                if matches!(tokens.peek(), Some(TokenTree::Punct(mark)) if mark.as_char() == '!')
-                    && !standard_macro(&name.to_string()) =>
+                if macro_invocation(
+                    matches!(tokens.peek(), Some(TokenTree::Punct(mark)) if mark.as_char() == '!'),
+                    matches!(tokens.clone().nth(1), Some(TokenTree::Group(_))),
+                ) && !standard_macro(&name.to_string()) =>
             {
                 return false;
             }
@@ -67,6 +69,10 @@ fn closed_tokens(tokens: TokenStream) -> bool {
         }
     }
     true
+}
+
+fn macro_invocation(bang: bool, arguments: bool) -> bool {
+    bang && arguments
 }
 
 fn standard_attribute(meta: &Meta) -> bool {
@@ -187,7 +193,18 @@ pub fn validate_source(bytes: &[u8]) -> Result<()> {
 
 #[cfg(kani)]
 mod proofs {
-    use super::{Input, admitted};
+    use super::{Input, admitted, macro_invocation};
+
+    #[kani::proof]
+    fn macro_recognition_requires_bang_and_delimited_arguments() {
+        let bang: bool = kani::any();
+        let arguments: bool = kani::any();
+        let invocation = macro_invocation(bang, arguments);
+        assert_eq!(invocation, bang && arguments);
+        kani::cover!(invocation);
+        kani::cover!(!invocation && bang && !arguments);
+        kani::cover!(!invocation && !bang);
+    }
 
     #[kani::proof]
     fn only_closed_source_inputs_are_admitted() {

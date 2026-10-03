@@ -11,9 +11,12 @@ runs:
       with:
         version: 2026.10.0
         install: false
+    - name: Prepare the policy compiler
+      shell: bash
+      run: mise install rust@1.99.0
     - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       with:
-        workspaces: ${{ github.action_path }}/../../../.ci/ci-policy -> target
+        workspaces: ${{ github.action_path }}/../../../.ci/ci-policy -> ${{ github.workspace }}/target
         cmd-format: mise x rust@1.99.0 -- {0}
         cache-bin: false
         save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -23,6 +26,8 @@ runs:
         POLICY_SOURCE: ${{ github.action_path }}/../../..
         POLICY_OUTPUT: ${{ runner.temp }}/ci-policy
         CARGO_BUILD_JOBS: "2"
-      run: |
+        CARGO_TARGET_DIR: ${{ github.workspace }}/target
+      run: | # zizmor: ignore[github-env] -- Installs only this action's compiled policy into a fixed runner-owned directory.
         mise x rust@1.99.0 -- cargo install --locked --path "$POLICY_SOURCE/.ci/ci-policy" --root "$POLICY_OUTPUT"
         printf 'executable=%s/bin/ci-policy\n' "$POLICY_OUTPUT" >> "$GITHUB_OUTPUT"
+        printf '%s/bin\n' "$POLICY_OUTPUT" >> "$GITHUB_PATH"

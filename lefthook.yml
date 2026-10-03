@@ -1,59 +1,12 @@
-# lefthook (https://lefthook.dev/) — git hooks for project-template itself.
-# Generated repositories ship their own lefthook.yml from the `lefthook`
-# layer; this file is for contributors to *this* repository.
-#
-# Install:   just hooks
-# Uninstall: just hooks-uninstall
-
 pre-commit:
-  parallel: true
-  skip:
-    - rebase
-    - merge
   commands:
-    fmt:
-      glob: ".template/tmpl/**/*.rs"
-      run: just fmt
-      stage_fixed: true
-    clippy:
-      glob: ".template/tmpl/**/*.{rs,toml}"
-      run: just clippy
-    typos:
-      run: just typos
-    actionlint:
-      glob: ".github/workflows/*.{yml,yaml}"
-      run: just actionlint
-    yamllint:
-      glob: "**/*.{yml,yaml}"
-      # Gate on yamllint being installed: it is a Python tool that
-      # contributors install through their system package manager
-      # (see mise.toml's note). The hook silently no-ops if absent
-      # rather than blocking commits — `just yamllint` itself prints
-      # a one-line installation hint.
-      run: just yamllint
-    markdownlint:
-      glob: "**/*.md"
-      run: just markdownlint
-    strict-code:
-      run: just strict-code
-
+    project:
+      run: mise x -- just check-staged
 commit-msg:
   commands:
     conventional:
-      # `committed` is a mise-managed binary. Lefthook spawns hooks
-      # under `/bin/sh` whose PATH doesn't always reflect a freshly-
-      # installed mise tool, so route through `mise exec` to resolve
-      # the binary from this project's `mise.toml`.
       run: mise exec -- committed --commit-file {1}
-
 pre-push:
-  parallel: true
-  skip:
-    - rebase
   commands:
-    test:
-      run: just test
-    verify-template:
-      run: just verify-template
-    audit:
-      run: just audit
+    project:
+      run: mise x -- just check

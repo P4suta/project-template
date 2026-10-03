@@ -1,98 +1,36 @@
 # project-template
 
-A language-agnostic GitHub Template Repository whose initial state ships with the modern dev-environment hygiene that's worth setting up on day one of every project — Docker isolation, typos, lefthook git hooks, Conventional Commits, ADRs, Renovate, coverage gates, strict-code grep, xtask — and nothing project-specific.
+A GitHub repository template with a Rust layer engine and a shared local and CI verification contract.
 
-The template carries a small Rust-based engine (`tmpl`) at `.template/tmpl/`
-that composes a chosen set of *layers* (configuration stacks) into the new
-repository. Layers are designed as nodes of a DAG with capability-based
-dependencies; the engine evaluates them as a pure function of (manifest,
-selection, repository context), records the outcome in a Merkle-rooted state
-file, and supports idempotent re-application via 3-way merge against your
-local edits.
+Create a repository with **Use this template**.
+The initialization workflow produces an `initialized-project` artifact containing `initialized.patch`.
+Apply it with `git apply --index initialized.patch`, then submit the generated project through your normal signed commit and pull request workflow.
 
-The intent: from `Use this template` to `just lint && just test` in one push.
+To render locally:
 
-## Quick start (Path A — GitHub UI)
-
-1. Click **Use this template** on this repository's GitHub page.
-2. Pick a name for your new repository and create it.
-3. The first push runs `.github/workflows/init.yml` and saves the `initialized-project` artifact.
-4. Download its `initialized.patch`, apply it with `git apply --index initialized.patch`, and submit the rendered files and template deletions through a normal signed commit and pull request.
-
-## Quick start (Path B — local)
-
-```sh
-gh repo create my-project --template P4suta/project-template --public
-gh repo clone my-project && cd my-project
-bash .template/bootstrap.sh --layers core,typos,lefthook,docker-dev,rust-workspace
+```console
+mise x -- cargo run --locked --release --manifest-path .template/tmpl/Cargo.toml -- --template-root .template --dest ../my-project apply --project-name my-project --project-owner OWNER
 ```
 
-`bootstrap.sh` provisions the toolchain via `mise`, builds the engine, and
-runs `tmpl apply` against the layers you select. Both paths invoke the same
-`tmpl apply`; they differ only in how the engine is invoked.
+Select layers with `--layers`; inspect commands with `--help` and available layers in [.template/manifest.toml](.template/manifest.toml).
+The engine rejects missing dependencies and conflicting capabilities before writing files, records generated-file hashes, and refuses to overwrite detected drift.
 
-## Layer catalogue
+For development, install the pinned tools with `mise install` and `mise install rust@1.99.0`.
+With the shared `ci-policy` command installed, run:
 
-| Layer | Provides | Requires | Conflicts | Purpose |
-| --- | --- | --- | --- | --- |
-| `core` | `licensing`, `meta-files`, `github-issue-templates` | — | — | LICENSE-{APACHE,MIT} / NOTICE / .editorconfig / .gitattributes / .gitignore / README skeleton / CHANGELOG / CONTRIBUTING / CODE_OF_CONDUCT / SECURITY / mise.toml / GitHub issue + PR templates / CODEOWNERS |
-| `typos` | `text-lint` | — | — | `_typos.toml` + the `typos` lint pass |
-| `lefthook` | `git-hooks` | — | — | `lefthook.yml` (generic baseline; language overlays supersede) |
-| `conventional-commits` | `commit-style` | `git-hooks` | — | `committed.toml` + the commit-msg hook + a CI step that lints PR titles |
-| `renovate` | `deps-bot` | — | — | `renovate.json` extending the shared `github>P4suta/renovate-config` preset (Renovate finds GitHub Actions, cargo, npm and Dockerfile dependencies on its own) |
-| `adr-madr` | `decision-records` | — | — | `docs/adr/0000-template.md` (MADR 4.0) + seminal `0001-record-architecture-decisions.md` |
-| `docker-dev` | `container-runtime` | — | — | Multi-stage `Dockerfile` + `docker-compose.yml` + named-volume cargo / sccache caches |
-| `rust-workspace` | `cargo-workspace`, `rust-toolchain` | `git-hooks` | `typescript-package` | `Cargo.toml` workspace + `workspace.lints` (clippy pedantic + nursery + cargo) + `clippy.toml` + `rustfmt.toml` + `deny.toml` + `rust-toolchain.toml` + Rust-aware `Justfile` + Rust-aware `lefthook.yml` |
-| `xtask` | `dev-automation` | `cargo-workspace` | — | `crates/xtask` sub-binary scaffold + `[alias] xtask = ...` cargo config |
-| `typescript-package` | `node-package` | `container-runtime`, `git-hooks` | `rust-workspace` | `package.json` + `tsconfig.json` (strict) + `biome.json` + `vitest.config.ts` + TypeScript-aware `Justfile` + TypeScript-aware `lefthook.yml` |
-
-Layers expose capabilities and consume capabilities. The engine refuses to
-apply a selection that contains an unsatisfied requirement, a duplicated
-capability, or a cycle in the requirements graph; these failures show up
-before any file is written.
-
-## Repository layout
-
-```text
-.template/
-  manifest.toml            Variable definitions and layer registry
-  schema.json              Manifest JSON Schema (validated on load)
-  tmpl/                    The Rust engine (≤ ~1500 LOC, no unsafe)
-  layers/<name>/           Layer assets: layer.toml + tera/jinja templates
-  bootstrap.sh             Path B entry-point
-.github/
-  workflows/init.yml       Path A entry-point (engine via Actions)
-  workflows/tmpl-verify.yml Engine CI for this template repository itself
-LICENSE-APACHE / LICENSE-MIT / NOTICE
-README.md                  This file
+```console
+mise x -- just check
+mise x -- just check-staged
 ```
 
-## License
+To install the policy command from this checkout:
 
-Dual-licensed under Apache-2.0 OR MIT, at your option. Repositories
-generated by this template inherit the same dual license by default; you
-are free to relicense your own derived projects.
+```console
+mise x rust@1.99.0 -- cargo install --locked --path .ci/ci-policy
+```
 
-## `tmpl` commands
+[.ci/verification.json](.ci/verification.json) binds local commands to native CI jobs and separates commit checks from development checks.
+Successful evidence is reused only for matching inputs, tools, environment, and platform.
+See [ADRs](docs/adr/) for architectural decisions.
 
-| Command | Behaviour |
-| --- | --- |
-| `tmpl apply --layers <list> --project-name … --project-owner …` | Render and write the layer set; record state |
-| `tmpl add <layer> [--force] --project-* …` | Drift-check existing layers, then re-apply with the extended selection; `--force` overrides drift |
-| `tmpl remove <layer> [--force]` | Drift-check the layer's files, delete them, prune empty parents, recompute Merkle root |
-| `tmpl status` | Print applied layers + per-layer file counts |
-| `tmpl verify` | Manifest + DAG soundness check (used by `just verify-template`) |
-| `tmpl seal` | Delete `.template/` and graduate from the engine |
-| `tmpl new gh:owner/repo dest [--public]` | Wrap `gh repo create --template` + `bash .template/bootstrap.sh` |
-
-Drift detection uses BLAKE3 hashes recorded per file in
-`.template/state.toml`. `add` and `remove` refuse to proceed when any
-recorded file's on-disk content has been modified locally — pass
-`--force` to override.
-
-## Status
-
-Phase A + B + C complete: 91 tests, 95.15 % region coverage, public
-template ready for `Use this template` consumption. Long-term target:
-96 % coverage and a true 3-way merge in `tmpl add` (currently
-refuse-on-drift). See ADRs under `docs/adr/` for design rationale.
+Licensed under [Apache-2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT).

@@ -262,7 +262,8 @@ pub fn commit(root: &Path, expected: &str, guard: bool) -> Result<()> {
     )
     .context("global source prose gate failed")?;
     repository_hook(&root, "pre-commit", &[], None)?;
-    crate::local::verify_index(&root)
+    crate::local::verify_index(&root)?;
+    crate::project::verify_index(&root)
 }
 
 pub fn check_push_hold() -> Result<()> {
@@ -296,17 +297,27 @@ pub fn push(root: &Path, expected: &str, remote: &str, url: &str, input: &str) -
         .filter(|line| !line.trim().is_empty())
         .map(PushUpdate::parse)
         .collect::<Result<_>>()?;
-    for update in updates {
+    for update in &updates {
         let revision = update.local_revision();
         if let Some(previous) = update.remote_revision() {
             git(&root, &["merge-base", "--is-ancestor", previous, revision])
                 .context("a non-fast-forward push is prohibited")?;
         }
-        for revision in crate::local::introduced_commits(&root, remote, &update)? {
+        for revision in crate::local::introduced_commits(&root, remote, update)? {
             git(&root, &["verify-commit", &revision])
                 .context("unsigned or unverifiable commits cannot be pushed")?;
         }
     }
     crate::local::verify_push(&root, remote, input)?;
-    repository_hook(&root, "pre-push", &[remote, url], Some(input.as_bytes()))
+    for update in updates {
+        crate::project::verify_revision(&root, update.local_revision(), |candidate| {
+            repository_hook(
+                candidate,
+                "pre-push",
+                &[remote, url],
+                Some(input.as_bytes()),
+            )
+        })?;
+    }
+    Ok(())
 }

@@ -75,6 +75,7 @@ pub mod handoff;
 pub mod hooks;
 pub mod json;
 pub mod local;
+pub mod project;
 pub mod proof;
 pub mod tools;
 pub mod verification;

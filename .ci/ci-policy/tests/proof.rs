@@ -27,6 +27,13 @@ fn standalone_source_cannot_consume_unbound_inputs() {
 }
 
 #[test]
+fn comparison_operators_do_not_hide_or_become_macro_inputs() {
+    use ci_policy::proof::validate_source;
+    assert!(validate_source(b"fn check(left: u8, right: u8) { assert!(left != right); }").is_ok());
+    assert!(validate_source(b"fn check(left: u8) { assert!(left != hidden!()); }").is_err());
+}
+
+#[test]
 fn standalone_proof_inventory_requires_unique_positive_and_negative_contracts() {
     let positive = vec!["production::proofs::required".to_owned()];
     let negative = "production::proofs::counterexample";

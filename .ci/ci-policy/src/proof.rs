@@ -13,7 +13,14 @@ use crate::{Conclusion, gate};
 mod source;
 pub use source::validate_source;
 
-pub const HARNESSES: [&str; 10] = [
+pub const HARNESSES: [&str; 17] = [
+    "proof::source::proofs::macro_recognition_requires_bang_and_delimited_arguments",
+    "project::protocol::proofs::reuse_requires_applicable_exact_success",
+    "project::protocol::proofs::uncovered_or_empty_ci_cannot_complete",
+    "project::protocol::proofs::automatic_checks_are_bounded_by_their_phase",
+    "project::protocol::proofs::cumulative_budget_cannot_overflow_or_expand",
+    "project::protocol::proofs::completion_requires_success_within_the_budget",
+    "project::command::proofs::cargo_operations_do_not_admit_publication",
     "handoff::proofs::initialization_keeps_exactly_rendered_files",
     "workflow::proofs::read_only_checkout_cannot_retain_credentials",
     "proofs::installed_policy_requires_the_reviewed_revision",
