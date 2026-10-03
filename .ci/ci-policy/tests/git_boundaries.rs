@@ -1,6 +1,8 @@
 mod common;
 
-use ci_policy::local::{PushUpdate, indexed_files, introduced_commits, pushed_files};
+use ci_policy::local::{
+    PushUpdate, indexed_files, introduced_commits, introduced_history_options, pushed_files,
+};
 use common::Repository;
 
 #[test]
@@ -98,4 +100,78 @@ fn remote_merge_history_is_trusted_without_rescanning_old_commits() {
         [merge]
     );
     assert!(introduced_commits(repository.path(), "origin*", &update).is_err());
+}
+
+#[test]
+fn merge_only_added_content_is_included_in_introduced_history_scans() {
+    let repository = Repository::new();
+    repository.write("README.md", b"Base\n");
+    let base = repository.commit(&[]);
+    repository.write("remote.txt", b"Published\n");
+    let remote = repository.commit(&[&base]);
+    repository.git(&["update-ref", "refs/remotes/origin/main", &remote]);
+    repository.git(&["read-tree", "--reset", "-u", &base]);
+    repository.write("local.txt", b"Local\n");
+    let local = repository.commit(&[&base]);
+    repository.write("remote.txt", b"Published\n");
+    repository.write("merge-only.txt", b"Unique merge-only content\n");
+    let merge = repository.commit(&[&local, &remote]);
+    repository.git(&["rm", "--", "merge-only.txt"]);
+    let final_revision = repository.commit(&[&merge]);
+    let update = PushUpdate::parse(&format!(
+        "refs/heads/candidate {final_revision} refs/heads/candidate {base}"
+    ))
+    .expect("candidate");
+    let options = introduced_history_options("origin", &update).expect("history options");
+    let mut arguments = vec!["log", "-p", "-U0"];
+    arguments.extend(options.split_whitespace());
+    let output = repository.git(&arguments);
+    assert!(
+        String::from_utf8(output)
+            .expect("patches")
+            .contains("+Unique merge-only content")
+    );
+}
+
+#[test]
+fn fixture_git_does_not_target_the_parent_hook_repository() {
+    const MARKER: &str = "CI_POLICY_FIXTURE_ISOLATION_TEST";
+    if std::env::var_os(MARKER).is_some() {
+        let repository = Repository::new();
+        repository.write("fixture.txt", b"Fixture\n");
+        let object = repository.blob(b"Fixture object\n");
+        assert_eq!(object.len(), 40);
+        repository.commit(&[]);
+        assert!(repository.path().join(".git").is_dir());
+        return;
+    }
+    let outer = Repository::new();
+    outer.write("owner.txt", b"Owner\n");
+    let original = outer.commit(&[]);
+    let status = std::process::Command::new(std::env::current_exe().expect("test executable"))
+        .args([
+            "--exact",
+            "fixture_git_does_not_target_the_parent_hook_repository",
+            "--nocapture",
+        ])
+        .env(MARKER, "1")
+        .env("GIT_DIR", outer.path().join(".git"))
+        .env("GIT_WORK_TREE", outer.path())
+        .env("GIT_INDEX_FILE", outer.path().join(".git/index"))
+        .env("GIT_OBJECT_DIRECTORY", outer.path().join(".git/objects"))
+        .env(
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+            outer.path().join(".git/objects"),
+        )
+        .env("GIT_COMMON_DIR", outer.path().join(".git"))
+        .status()
+        .expect("child test");
+    assert!(status.success());
+    assert_eq!(
+        String::from_utf8(outer.git(&["rev-parse", "HEAD"]))
+            .expect("owner revision")
+            .trim(),
+        original
+    );
+    assert_eq!(outer.git(&["ls-files", "-z"]), b"owner.txt\0");
 }

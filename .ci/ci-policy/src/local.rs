@@ -413,12 +413,21 @@ pub fn introduced_commits(root: &Path, remote: &str, update: &PushUpdate) -> Res
     Ok(commits)
 }
 
+pub fn introduced_history_options(remote: &str, update: &PushUpdate) -> Result<String> {
+    let remote = remote_pattern(remote)?;
+    let range = match update.remote_revision() {
+        Some(previous) => format!("{previous}..{}", update.local_revision()),
+        None => update.local_revision().to_owned(),
+    };
+    Ok(format!("--diff-merges=separate {range} --not {remote}"))
+}
+
 fn push_scope<'a>(root: &Path, remote: &str, update: &'a PushUpdate) -> Result<Scope<'a>> {
     remote_pattern(remote)?;
     let revision = update.local_revision();
     let mut names = BTreeSet::new();
     let commits = introduced_commits(root, remote, update)?;
-    let range = if let Some(previous) = update.remote_revision() {
+    if let Some(previous) = update.remote_revision() {
         names.extend(paths(&git(
             root,
             &[
@@ -431,7 +440,6 @@ fn push_scope<'a>(root: &Path, remote: &str, update: &'a PushUpdate) -> Result<S
                 "--",
             ],
         )?)?);
-        format!("{previous}..{revision}")
     } else {
         for commit in commits {
             names.extend(paths(&git(
@@ -450,12 +458,11 @@ fn push_scope<'a>(root: &Path, remote: &str, update: &'a PushUpdate) -> Result<S
                 ],
             )?)?);
         }
-        revision.to_owned()
-    };
+    }
     Ok(Scope::Revision {
         revision,
         names: names.into_iter().collect(),
-        log_options: format!("{range} --not --remotes={remote}"),
+        log_options: introduced_history_options(remote, update)?,
     })
 }
 

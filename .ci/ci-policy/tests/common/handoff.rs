@@ -1,4 +1,4 @@
-use std::{fs, process::Command};
+use std::fs;
 
 use super::Repository;
 use ci_policy::handoff::patch_files;
@@ -27,8 +27,8 @@ fn initialization_patch_preserves_binary_content_and_template_deletions() {
         b"Old engine\n"
     );
     assert!(
-        Command::new("git")
-            .current_dir(repository.path())
+        repository
+            .git_command()
             .args(["apply", "--index"])
             .arg(&patch)
             .status()

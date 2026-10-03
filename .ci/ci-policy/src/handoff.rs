@@ -26,6 +26,7 @@ fn git(root: &Path, objects: Option<&Path>, arguments: &[&str]) -> Result<Vec<u8
         .env_remove("GIT_INDEX_FILE")
         .env_remove("GIT_OBJECT_DIRECTORY")
         .env_remove("GIT_ALTERNATE_OBJECT_DIRECTORIES")
+        .env_remove("GIT_COMMON_DIR")
         .args(arguments);
     if let Some(objects) = objects {
         command.env("GIT_ALTERNATE_OBJECT_DIRECTORIES", objects);

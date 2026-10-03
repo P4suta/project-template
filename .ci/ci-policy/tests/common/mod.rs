@@ -27,8 +27,8 @@ impl Repository {
     }
 
     pub fn git(&self, arguments: &[&str]) -> Vec<u8> {
-        let output = Command::new("git")
-            .current_dir(self.path())
+        let output = self
+            .git_command()
             .args(arguments)
             .output()
             .expect("fixture Git");
@@ -40,6 +40,22 @@ impl Repository {
         output.stdout
     }
 
+    pub fn git_command(&self) -> Command {
+        let mut command = Command::new("git");
+        command.current_dir(self.path());
+        for name in [
+            "GIT_DIR",
+            "GIT_WORK_TREE",
+            "GIT_INDEX_FILE",
+            "GIT_OBJECT_DIRECTORY",
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+            "GIT_COMMON_DIR",
+        ] {
+            command.env_remove(name);
+        }
+        command
+    }
+
     pub fn write(&self, path: &str, bytes: &[u8]) {
         let path = self.path().join(path);
         fs::create_dir_all(path.parent().expect("fixture parent")).expect("fixture directory");
@@ -48,8 +64,8 @@ impl Repository {
     }
 
     pub fn blob(&self, bytes: &[u8]) -> String {
-        let mut child = Command::new("git")
-            .current_dir(self.path())
+        let mut child = self
+            .git_command()
             .args(["hash-object", "-w", "--stdin"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -81,7 +97,7 @@ impl Repository {
     pub fn commit(&self, parents: &[&str]) -> String {
         let bytes = self.git(&["write-tree"]);
         let tree = std::str::from_utf8(&bytes).expect("fixture tree").trim();
-        let mut command = Command::new("git");
+        let mut command = self.git_command();
         command
             .current_dir(self.path())
             .env("GIT_AUTHOR_NAME", "Fixture")
