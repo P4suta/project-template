@@ -10,7 +10,10 @@ use serde_json::Value;
 
 use crate::{Conclusion, gate};
 
-pub const HARNESSES: [&str; 9] = [
+mod source;
+pub use source::validate_source;
+
+pub const HARNESSES: [&str; 10] = [
     "handoff::proofs::initialization_keeps_exactly_rendered_files",
     "workflow::proofs::read_only_checkout_cannot_retain_credentials",
     "proofs::installed_policy_requires_the_reviewed_revision",
@@ -20,6 +23,7 @@ pub const HARNESSES: [&str; 9] = [
     "verification::proofs::adding_a_file_cannot_remove_a_required_check",
     "verification::proofs::every_check_has_a_unique_plan_position",
     "proof::proofs::proof_contracts_must_be_reachable",
+    "proof::source::proofs::only_closed_source_inputs_are_admitted",
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -257,6 +261,148 @@ fn verify(manifest: &Path, counterexample: bool) -> Result<()> {
         expected,
         counterexample,
     )
+}
+
+pub fn source_harnesses<'a>(
+    required: &'a [String],
+    counterexample: &'a str,
+) -> Result<Vec<&'a str>> {
+    let valid = |name: &str| {
+        name.starts_with("production::")
+            && name.split("::").all(|part| {
+                !part.is_empty()
+                    && part
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+            })
+    };
+    ensure!(
+        !required.is_empty(),
+        "required source proof coverage is empty"
+    );
+    let mut names: Vec<_> = required.iter().map(String::as_str).collect();
+    names.push(counterexample);
+    ensure!(
+        names.iter().all(|name| valid(name))
+            && names.iter().copied().collect::<BTreeSet<_>>().len() == names.len(),
+        "source proof names are invalid or duplicated"
+    );
+    Ok(names)
+}
+
+fn verify_source(source: &Path, expected: &[&str], counterexample: bool) -> Result<()> {
+    let directory = tempfile::tempdir()?;
+    let output = directory.path().join("results.json");
+    let mut command = Command::new("kani");
+    command
+        .current_dir(directory.path())
+        .arg(source)
+        .args([
+            "--exact",
+            "--output-format",
+            "terse",
+            "-Z",
+            "unstable-options",
+            "--harness-timeout",
+            "60s",
+            "--export-json",
+        ])
+        .arg(&output)
+        .arg("--target-dir")
+        .arg(directory.path().join("models"));
+    for name in expected {
+        command.args(["--harness", name]);
+    }
+    let status = command
+        .status()
+        .context("required source verifier could not start")?;
+    ensure!(
+        status.success() != counterexample,
+        "Kani returned an unexpected outcome: {status}"
+    );
+    validate_results(
+        &crate::json::parse(&fs::read(output)?)?,
+        expected,
+        counterexample,
+    )
+}
+
+pub fn prove_source(source: &Path, required: &[String], counterexample: &str) -> Result<()> {
+    let expected = source_harnesses(required, counterexample)?;
+    ensure!(
+        cfg!(any(target_os = "macos", target_os = "linux")),
+        "the native Kani gate requires Linux or Mac"
+    );
+    let metadata = fs::symlink_metadata(source)?;
+    ensure!(
+        metadata.is_file() && metadata.len() <= 64 * 1024 * 1024,
+        "standalone proof source must be a bounded regular file"
+    );
+    let source = source.canonicalize()?;
+    let original = fs::read(&source)?;
+    validate_source(&original)?;
+    ensure!(
+        original.len() <= 64 * 1024 * 1024,
+        "standalone proof source exceeds the verification budget"
+    );
+    let package = tempfile::tempdir()?;
+    fs::write(package.path().join("production.rs"), &original)?;
+    let wrapper = package.path().join("lib.rs");
+    fs::write(&wrapper, b"#[path = \"production.rs\"]\nmod production;\n")?;
+    let version = Command::new("kani").arg("--version").output()?;
+    ensure!(
+        version.status.success()
+            && std::str::from_utf8(&version.stdout)?.contains("Kani Rust Verifier 0.68.0"),
+        "required Kani 0.68.0 is unavailable"
+    );
+    let inventory = tempfile::tempdir()?;
+    crate::local::execute(
+        Command::new("kani")
+            .current_dir(inventory.path())
+            .args(["list", "--format", "json"])
+            .arg(&wrapper),
+        None,
+    )?;
+    let listed = crate::json::parse(&fs::read(inventory.path().join("kani-list.json"))?)?;
+    ensure!(
+        listed["kani-version"] == "0.68.0",
+        "unexpected proof inventory version"
+    );
+    let declarations = listed["standard-harnesses"]
+        .as_object()
+        .context("proof declarations are missing")?;
+    let names: Vec<_> = declarations
+        .values()
+        .map(|value| {
+            value
+                .as_array()
+                .context("proof declarations must be arrays")
+        })
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
+        .flatten()
+        .map(|value| {
+            value
+                .as_str()
+                .context("proof declaration identity is invalid")
+        })
+        .collect::<Result<_>>()?;
+    ensure!(
+        names.len() == expected.len()
+            && names.into_iter().collect::<BTreeSet<_>>() == expected.into_iter().collect(),
+        "required source proof inventory drifted"
+    );
+    let required: Vec<_> = required.iter().map(String::as_str).collect();
+    verify_source(&wrapper, &required, false)?;
+    verify_source(&wrapper, &[counterexample], true)?;
+    ensure!(
+        fs::read(source)? == original,
+        "production proof source changed during verification"
+    );
+    println!(
+        "Verified every required source harness and the rejecting counterexample with fresh models"
+    );
+    Ok(())
 }
 
 pub fn prove(manifest: &Path) -> Result<()> {

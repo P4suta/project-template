@@ -77,6 +77,11 @@ enum Action {
     Prove {
         manifest: PathBuf,
     },
+    ProveSource {
+        source: PathBuf,
+        required: Vec<String>,
+        counterexample: String,
+    },
 }
 
 impl Cli {
@@ -152,6 +157,16 @@ impl Cli {
                 ),
             )
             .subcommand(Command::new("prove").arg(path("manifest-path")))
+            .subcommand(
+                Command::new("prove-source")
+                    .arg(path("source"))
+                    .arg(Arg::new("require-json").long("require-json").required(true))
+                    .arg(
+                        Arg::new("counterexample")
+                            .long("counterexample")
+                            .required(true),
+                    ),
+            )
             .subcommand(
                 Command::new("audit")
                     .arg(path("inventory"))
@@ -251,6 +266,13 @@ impl Cli {
             },
             "prove" => Action::Prove {
                 manifest: get_path("manifest-path")?,
+            },
+            "prove-source" => Action::ProveSource {
+                source: get_path("source")?,
+                required: serde_json::from_value(ci_policy::json::parse(
+                    get_string("require-json")?.as_bytes(),
+                )?)?,
+                counterexample: get_string("counterexample")?,
             },
             "audit" => Action::Audit {
                 inventory: get_path("inventory")?,
@@ -362,6 +384,11 @@ fn run() -> Result<()> {
         Action::Actionlint { root } => ci_policy::local::actionlint(&root)?,
         Action::InstallTools { workflow_only } => ci_policy::tools::install(workflow_only)?,
         Action::Prove { manifest } => ci_policy::proof::prove(&manifest)?,
+        Action::ProveSource {
+            source,
+            required,
+            counterexample,
+        } => ci_policy::proof::prove_source(&source, &required, &counterexample)?,
         Action::VerifyIndex { root } => ci_policy::local::verify_index(&root)?,
         Action::PrePush {
             root,
