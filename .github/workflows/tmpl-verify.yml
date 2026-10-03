@@ -42,7 +42,7 @@ jobs:
           shared-key: template-engine-v1
           cache-bin: false
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: taiki-e/install-action@4684b8405694ae9dd42c9f39ba901a70ae83f4a3 # v2.82.9
+      - uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
         with:
           tool: cargo-nextest@0.9.145,cargo-llvm-cov@0.9.1,cargo-deny@0.20.2,typos@1.50.3
           fallback: none
