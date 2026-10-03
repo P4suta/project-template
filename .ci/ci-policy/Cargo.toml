@@ -18,6 +18,8 @@ yaml-rust2 = "0.13"
 tempfile = "3.27"
 yaml-edit = "0.3.2"
 sha2 = "0.10"
+proc-macro2 = "1.0"
+syn = { version = "3.0", features = ["full", "visit"] }
 
 [lints.rust]
 unsafe_code = "forbid"
