@@ -19,6 +19,8 @@ fn standalone_source_cannot_consume_unbound_inputs() {
         "fn check() { custom_proof!(); }",
         "use std::include_str as assert; fn check() { assert!(\"/tmp/input\"); }",
         "extern crate external;",
+        "unsafe extern \"C\" { fn foreign(); }",
+        "unsafe extern \"Rust\" { static FOREIGN: u8; }",
     ] {
         assert!(validate_source(source.as_bytes()).is_err(), "{source}");
     }

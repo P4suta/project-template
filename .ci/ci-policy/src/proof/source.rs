@@ -13,6 +13,7 @@ enum Input {
     ExternalAttribute,
     MacroDefinition,
     ExternalCrate,
+    ForeignModule,
 }
 
 fn admitted(input: Input) -> bool {
@@ -22,7 +23,8 @@ fn admitted(input: Input) -> bool {
         | Input::ExternalMacro
         | Input::ExternalAttribute
         | Input::MacroDefinition
-        | Input::ExternalCrate => false,
+        | Input::ExternalCrate
+        | Input::ForeignModule => false,
     }
 }
 
@@ -116,6 +118,10 @@ impl Closure {
 }
 
 impl<'ast> Visit<'ast> for Closure {
+    fn visit_item_foreign_mod(&mut self, _: &'ast syn::ItemForeignMod) {
+        self.require(Input::ForeignModule);
+    }
+
     fn visit_use_rename(&mut self, _: &'ast syn::UseRename) {
         self.require(Input::ExternalMacro);
     }
