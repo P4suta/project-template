@@ -1,6 +1,3 @@
-# rustfmt configuration — STABLE options only. The pinned toolchain
-# (rust-toolchain.toml) tracks a stable channel; no nightly-only options
-# may appear here.
 
 edition              = "2024"
 newline_style        = "Unix"

@@ -1,73 +1,91 @@
 name: Engine and policy CI
-
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch: {}
-
 permissions:
   contents: read
-
 concurrency:
   group: tmpl-verify-${{ github.ref }}
   cancel-in-progress: true
-
 env:
   CARGO_BUILD_JOBS: "2"
-
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target
+  MISE_AUTO_INSTALL: "false"
 jobs:
   policy:
     uses: $/.github/workflows/common-policy.yml
-
   policy-code:
     uses: $/.github/workflows/ci-policy-checks.yml
-
   engine:
-    name: Engine and layer assurance
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+    name: Native implementation assurance (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
         with:
-          toolchain: 1.95.0
-          components: rustfmt,clippy,llvm-tools-preview
+          version: 2026.10.0
+          install: false
+      - run: mise install rust@1.99.0 just@1.58.0 typos@1.50.3 cargo-binstall@1.25.1
+      - name: Prepare pinned Cargo extensions
+        env:
+          MISE_CARGO_BINSTALL: "true"
+          MISE_CARGO_BINSTALL_ONLY: "true"
+        run: mise x rust@1.99.0 cargo-binstall@1.25.1 -- mise install cargo:cargo-nextest@0.9.146 cargo:cargo-deny@0.20.2
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          workspaces: .template/tmpl -> target
-          shared-key: template-engine-v1
+          workspaces: |
+            .ci/ci-policy -> ../../target
+            .template/tmpl -> ../../target
+          cmd-format: mise x rust@1.99.0 -- {0}
           cache-bin: false
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
+      - id: policy
+        uses: $/.github/actions/ci-policy
+      - run: mise x -- just check tmpl-verify.yml::engine
+  coverage:
+    name: Engine region coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          tool: cargo-nextest@0.9.145,cargo-llvm-cov@0.9.1,cargo-deny@0.20.2,typos@1.50.3
-          fallback: none
-      - name: Check formatting
-        run: cargo fmt --manifest-path .template/tmpl/Cargo.toml --all -- --check
-      - name: Check all engine targets
-        run: cargo clippy --locked --manifest-path .template/tmpl/Cargo.toml --all-targets -- -D warnings
-      - name: Check spelling
-        run: typos
-      - name: Run the complete test suite
-        run: cargo nextest run --locked --manifest-path .template/tmpl/Cargo.toml
-      - name: Require region coverage of at least 94 percent
-        run: cargo llvm-cov --locked --manifest-path .template/tmpl/Cargo.toml --ignore-filename-regex 'src/main\.rs' --fail-under-regions 94 --summary-only
-      - name: Verify dependencies
-        run: cargo deny --locked --manifest-path .template/tmpl/Cargo.toml check
-      - name: Build the template engine
-        run: cargo build --locked --manifest-path .template/tmpl/Cargo.toml --release
-      - name: Verify every bundled layer
-        run: .template/tmpl/target/release/tmpl --template-root .template verify
-
-
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          version: 2026.10.0
+          install: false
+      - run: mise install rust@1.99.0 just@1.58.0 cargo-binstall@1.25.1
+      - run: mise x rust@1.99.0 -- rustup component add llvm-tools-preview --toolchain 1.99.0
+      - name: Prepare the pinned coverage extension
+        env:
+          MISE_CARGO_BINSTALL: "true"
+          MISE_CARGO_BINSTALL_ONLY: "true"
+        run: mise x rust@1.99.0 cargo-binstall@1.25.1 -- mise install cargo:cargo-llvm-cov@0.9.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: |
+            .ci/ci-policy -> ../../target
+            .template/tmpl -> ../../target
+          cmd-format: mise x rust@1.99.0 -- {0}
+          cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - id: policy
+        uses: $/.github/actions/ci-policy
+      - run: mise x -- just check tmpl-verify.yml::coverage
   required:
     name: required
     if: always()
-    needs: [engine, policy, policy-code]
+    needs: [engine, coverage, policy, policy-code]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions: {}
@@ -78,4 +96,4 @@ jobs:
         env:
           POLICY: ${{ steps.policy.outputs.executable }}
           RESULTS: ${{ toJSON(needs) }}
-        run: '"$POLICY" gate --needs "$RESULTS" --require-json ''["engine", "policy", "policy-code"]'''
+        run: '"$POLICY" gate --needs "$RESULTS" --require-json ''["engine", "coverage", "policy", "policy-code"]'''

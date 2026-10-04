@@ -71,7 +71,7 @@ impl PushUpdate {
 
 enum Scope<'a> {
     Index,
-    Workflows {
+    Repository {
         revision: &'a str,
         names: Vec<String>,
     },
@@ -86,7 +86,7 @@ pub struct File {
     pub path: String,
     pub bytes: Vec<u8>,
     pub kind: FileKind,
-    checked: bool,
+    pub checked: bool,
 }
 
 fn git(root: &Path, args: &[&str]) -> Result<Vec<u8>> {
@@ -351,7 +351,7 @@ pub fn verify_skill_maintenance() -> Result<()> {
 }
 
 pub fn verify_workflows(root: &Path) -> Result<()> {
-    let revision = git(root, &["rev-parse", "HEAD^{commit}"])?;
+    let revision = git(root, &["write-tree"])?;
     let revision = std::str::from_utf8(&revision)?.trim();
     ensure!(
         exact_hash(revision.as_bytes(), 40),
@@ -367,7 +367,31 @@ pub fn verify_workflows(root: &Path) -> Result<()> {
             .any(|path| file_kind(path, &[]) == FileKind::Workflow),
         "workflow coverage is empty"
     );
-    verify(root, &Scope::Workflows { revision, names })
+    verify_repository(root, revision, names)
+}
+
+pub fn verify_source(root: &Path) -> Result<()> {
+    let revision = git(root, &["write-tree"])?;
+    let revision = std::str::from_utf8(&revision)?.trim();
+    ensure!(
+        exact_hash(revision.as_bytes(), 40),
+        "source revision is invalid"
+    );
+    let names = paths(&git(
+        root,
+        &["ls-tree", "-r", "--name-only", "-z", revision],
+    )?)?;
+    ensure!(!names.is_empty(), "source coverage is empty");
+    verify_repository(root, revision, names)
+}
+
+fn verify_repository(root: &Path, revision: &str, names: Vec<String>) -> Result<()> {
+    verify(root, &Scope::Repository { revision, names })?;
+    ensure!(
+        std::str::from_utf8(&git(root, &["write-tree"])?)?.trim() == revision,
+        "the index changed during verification; verify the new content"
+    );
+    Ok(())
 }
 
 pub fn verify_push(root: &Path, remote_name: &str, input: &str) -> Result<()> {
@@ -459,6 +483,10 @@ fn push_scope<'a>(root: &Path, remote: &str, update: &'a PushUpdate) -> Result<S
             )?)?);
         }
     }
+    names.extend(selected_paths(
+        &git(root, &["ls-tree", "-r", "--name-only", "-z", revision])?,
+        |path| crate::verification::required_on_push(file_kind(path, &[])),
+    )?);
     Ok(Scope::Revision {
         revision,
         names: names.into_iter().collect(),
@@ -490,14 +518,14 @@ fn verify(root: &Path, scope: &Scope<'_>) -> Result<()> {
         Scope::Index => {
             std::str::from_utf8(initial.as_deref().context("index identity is missing")?)?.trim()
         }
-        Scope::Revision { revision, .. } | Scope::Workflows { revision, .. } => revision,
+        Scope::Revision { revision, .. } | Scope::Repository { revision, .. } => revision,
     };
     let names = match scope {
         Scope::Index => index_names(&root, tree)?,
-        Scope::Revision { names, .. } | Scope::Workflows { names, .. } => names.clone(),
+        Scope::Revision { names, .. } | Scope::Repository { names, .. } => names.clone(),
     };
     let files = snapshot(&root, tree, &names)?;
-    let context = if matches!(scope, Scope::Workflows { .. }) {
+    let context = if matches!(scope, Scope::Repository { .. }) {
         VerificationContext::Repository
     } else {
         VerificationContext::Personal
@@ -556,7 +584,7 @@ fn verify(root: &Path, scope: &Scope<'_>) -> Result<()> {
                         .arg("--gitleaks-ignore-path")
                         .arg(temporary.path().join("absent-ignore-file"));
                     match scope {
-                        Scope::Index | Scope::Workflows { .. } => {
+                        Scope::Index | Scope::Repository { .. } => {
                             command.arg("dir").arg(&candidate);
                         }
                         Scope::Revision { log_options, .. } => {

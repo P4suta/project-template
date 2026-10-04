@@ -1,0 +1,451 @@
+{
+  "version": 1,
+  "checks": [
+    {
+      "id": "policy-fmt",
+      "phase": "commit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "command": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        ".ci/ci-policy/Cargo.toml",
+        "--check"
+      ],
+      "tools": [
+        "rust@1.99.0"
+      ],
+      "timeout_seconds": 10,
+      "inputs": [
+        ".ci/ci-policy/"
+      ],
+      "environment": [],
+      "cache": "content"
+    },
+    {
+      "id": "fixture-fmt",
+      "phase": "commit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "command": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        ".ci/ci-policy/tests/fixtures/xtask/Cargo.toml",
+        "--check"
+      ],
+      "tools": [
+        "rust@1.99.0"
+      ],
+      "timeout_seconds": 5,
+      "inputs": [
+        ".ci/ci-policy/tests/fixtures/"
+      ],
+      "environment": [],
+      "cache": "content"
+    },
+    {
+      "id": "engine-fmt",
+      "phase": "commit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "command": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        ".template/tmpl/Cargo.toml",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "tools": [
+        "rust@1.99.0"
+      ],
+      "timeout_seconds": 10,
+      "inputs": [
+        ".template/"
+      ],
+      "environment": [],
+      "cache": "content"
+    },
+    {
+      "id": "spelling",
+      "phase": "commit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "command": [
+        "typos"
+      ],
+      "tools": [
+        "typos@1.50.3"
+      ],
+      "timeout_seconds": 5,
+      "inputs": [
+        "."
+      ],
+      "environment": [],
+      "cache": "content"
+    },
+    {
+      "id": "policy-clippy",
+      "phase": "development",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--all-targets",
+        "--all-features",
+        "--manifest-path",
+        ".ci/ci-policy/Cargo.toml",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "tools": [
+        "rust@1.99.0"
+      ],
+      "timeout_seconds": 120,
+      "inputs": [
+        ".ci/ci-policy/"
+      ],
+      "environment": [],
+      "cache": "content"
+    },
+    {
+      "id": "policy-tests",
+      "phase": "development",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--all-targets",
+        "--manifest-path",
+        ".ci/ci-policy/Cargo.toml"
+      ],
+      "tools": [
+        "rust@1.99.0",
+        "just@1.58.0"
+      ],
+      "timeout_seconds": 180,
+      "inputs": [
+        ".ci/ci-policy/"
+      ],
+      "environment": [],
+      "cache": "content"
+    },
+    {
+      "id": "engine-clippy",
+      "phase": "development",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--manifest-path",
+        ".template/tmpl/Cargo.toml",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "tools": [
+        "rust@1.99.0"
+      ],
+      "timeout_seconds": 180,
+      "inputs": [
+        ".template/"
+      ],
+      "environment": [],
+      "cache": "content"
+    },
+    {
+      "id": "engine-tests",
+      "phase": "development",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "command": [
+        "cargo",
+        "nextest",
+        "run",
+        "--locked",
+        "--manifest-path",
+        ".template/tmpl/Cargo.toml"
+      ],
+      "tools": [
+        "rust@1.99.0",
+        "cargo:cargo-nextest@0.9.146"
+      ],
+      "timeout_seconds": 180,
+      "inputs": [
+        ".template/"
+      ],
+      "environment": [],
+      "cache": "content"
+    },
+    {
+      "id": "engine-coverage",
+      "phase": "development",
+      "platforms": [
+        "linux"
+      ],
+      "command": [
+        "cargo",
+        "llvm-cov",
+        "--locked",
+        "--manifest-path",
+        ".template/tmpl/Cargo.toml",
+        "--ignore-filename-regex",
+        "src/main\\.rs",
+        "--fail-under-regions",
+        "94",
+        "--summary-only"
+      ],
+      "tools": [
+        "rust@1.99.0",
+        "cargo:cargo-llvm-cov@0.9.1"
+      ],
+      "timeout_seconds": 300,
+      "inputs": [
+        ".template/"
+      ],
+      "environment": [],
+      "cache": "content"
+    },
+    {
+      "id": "engine-audit",
+      "phase": "development",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "command": [
+        "cargo",
+        "deny",
+        "--locked",
+        "--manifest-path",
+        ".template/tmpl/Cargo.toml",
+        "check"
+      ],
+      "tools": [
+        "rust@1.99.0",
+        "cargo:cargo-deny@0.20.2"
+      ],
+      "timeout_seconds": 90,
+      "inputs": [
+        ".template/"
+      ],
+      "environment": [],
+      "cache": "always"
+    },
+    {
+      "id": "engine-template",
+      "phase": "development",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "command": [
+        "cargo",
+        "run",
+        "--locked",
+        "--manifest-path",
+        ".template/tmpl/Cargo.toml",
+        "--release",
+        "--",
+        "verify"
+      ],
+      "tools": [
+        "rust@1.99.0"
+      ],
+      "timeout_seconds": 180,
+      "inputs": [
+        ".template/"
+      ],
+      "environment": [],
+      "cache": "content"
+    },
+    {
+      "id": "policy-proofs",
+      "phase": "development",
+      "platforms": [
+        "linux",
+        "macos"
+      ],
+      "command": [
+        "ci-policy",
+        "prove",
+        "--manifest-path",
+        ".ci/ci-policy/Cargo.toml"
+      ],
+      "tools": [
+        "rust@1.99.0",
+        "cargo:kani-verifier@0.68.0"
+      ],
+      "timeout_seconds": 300,
+      "inputs": [
+        ".ci/ci-policy/"
+      ],
+      "environment": [],
+      "cache": "content"
+    },
+    {
+      "id": "engine-proofs",
+      "phase": "development",
+      "platforms": [
+        "linux",
+        "macos"
+      ],
+      "command": [
+        "ci-policy",
+        "prove-source",
+        "--source",
+        ".template/tmpl/src/state/hex.rs",
+        "--require-json",
+        "[\"production::proofs::nibble_accepts_exactly_ascii_hexadecimal_digits\",\"production::proofs::decoder_preserves_every_byte_and_rejects_invalid_digits\"]",
+        "--counterexample",
+        "production::proofs::reject_invalid_digit_probe"
+      ],
+      "tools": [
+        "rust@1.99.0",
+        "cargo:kani-verifier@0.68.0"
+      ],
+      "timeout_seconds": 120,
+      "inputs": [
+        ".template/"
+      ],
+      "environment": [],
+      "cache": "content"
+    },
+    {
+      "id": "engine-path-proofs",
+      "phase": "development",
+      "platforms": [
+        "linux",
+        "macos"
+      ],
+      "command": [
+        "ci-policy",
+        "prove-source",
+        "--source",
+        ".template/tmpl/src/layer/path.rs",
+        "--require-json",
+        "[\"production::proofs::portable_roots_cannot_be_admitted_as_relative\"]",
+        "--counterexample",
+        "production::proofs::reject_rooted_path_probe"
+      ],
+      "tools": [
+        "rust@1.99.0",
+        "cargo:kani-verifier@0.68.0"
+      ],
+      "timeout_seconds": 120,
+      "inputs": [
+        ".template/"
+      ],
+      "environment": [],
+      "cache": "content"
+    }
+  ],
+  "ci": [
+    {
+      "workflow": "ci-policy-checks.yml",
+      "job": "proofs",
+      "checks": [
+        "policy-proofs",
+        "engine-proofs",
+        "engine-path-proofs"
+      ]
+    },
+    {
+      "workflow": "tmpl-verify.yml",
+      "job": "engine",
+      "checks": [
+        "policy-fmt",
+        "fixture-fmt",
+        "policy-clippy",
+        "policy-tests",
+        "engine-fmt",
+        "spelling",
+        "engine-clippy",
+        "engine-tests",
+        "engine-audit",
+        "engine-template"
+      ]
+    },
+    {
+      "workflow": "tmpl-verify.yml",
+      "job": "coverage",
+      "checks": [
+        "engine-coverage"
+      ]
+    }
+  ],
+  "hosted": [
+    {
+      "workflow": "codeql.yml",
+      "job": "codeql",
+      "capability": "security"
+    },
+    {
+      "workflow": "common-policy.yml",
+      "job": "policy",
+      "capability": "policy"
+    },
+    {
+      "workflow": "ci-policy-checks.yml",
+      "job": "verified",
+      "capability": "aggregate"
+    },
+    {
+      "workflow": "tmpl-verify.yml",
+      "job": "policy",
+      "capability": "policy"
+    },
+    {
+      "workflow": "tmpl-verify.yml",
+      "job": "policy-code",
+      "capability": "policy"
+    },
+    {
+      "workflow": "tmpl-verify.yml",
+      "job": "required",
+      "capability": "aggregate"
+    },
+    {
+      "workflow": "init.yml",
+      "job": "init",
+      "capability": "initialization"
+    }
+  ]
+}

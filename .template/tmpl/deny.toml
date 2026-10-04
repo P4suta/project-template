@@ -1,17 +1,9 @@
-# cargo-deny configuration for the engine crate.
-# Run via `just audit` (or directly: `cargo deny --manifest-path .../Cargo.toml check`).
 
 [advisories]
 yanked = "deny"
 ignore = []
 
 [licenses]
-# Licenses we accept on direct + transitive deps. The list is the
-# union of what the engine's current dep tree pulls in (after `cargo
-# deny check licenses`) plus a small safety margin for common
-# permissive-OSS licenses we expect to encounter as the tree grows.
-# Any license not on this list will reject the build at CI time —
-# evaluate before adding.
 allow = [
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",

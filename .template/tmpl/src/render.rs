@@ -1,18 +1,15 @@
-//! Render — turn a [`Layer`] into a [`Patch`] of fully-substituted
-//! file contents.
+//! Render — turn a [`Layer`] into a [`Patch`] of fully-substituted file contents.
 //!
 //! ## Templating convention
 //!
 //! Files inside a layer's `files/` directory are interpreted as follows:
 //!
-//! * Files whose name ends with `.j2` are rendered through `minijinja`
-//!   (Jinja2-compatible). The `.j2` suffix is stripped from the
-//!   destination path. The render context is exposed under `project`
-//!   and `answers` Jinja globals (see [`crate::ctx::Context`]).
+//! * Files whose name ends with `.j2` are rendered through `minijinja` (Jinja2-compatible).
+//!   The `.j2` suffix is stripped from the destination path.
+//!   The render context is exposed under `project` and `answers` Jinja globals (see [`crate::ctx::Context`]).
 //! * Files without `.j2` are copied verbatim.
 //!
-//! This separation keeps assets that legitimately contain `{{` (such
-//! as GitHub Actions `${{ secrets }}`) from needing escape syntax —
+//! This separation keeps assets that legitimately contain `{{` (such as GitHub Actions `${{ secrets }}`) from needing escape syntax —
 //! they are simply not given the `.j2` suffix.
 
 use std::fs;
@@ -26,8 +23,7 @@ use crate::ctx::Context;
 use crate::error::TmplError;
 use crate::layer::{Layer, LayerMeta, Patch, PathError, RenderedFile, RenderedPath};
 
-/// A layer materialised from disk under
-/// `.template/layers/<name>/{layer.toml,files/...}`.
+/// A layer materialised from disk under `.template/layers/<name>/{layer.toml,files/...}`.
 #[derive(Debug, Clone)]
 pub struct FilesystemLayer {
     /// Parsed `layer.toml`.
@@ -50,15 +46,13 @@ struct TemplateFile {
 }
 
 impl FilesystemLayer {
-    /// Load the layer at `layer_dir`. Expects `layer.toml` and a
-    /// `files/` subdirectory; both are required.
+    /// Load the layer at `layer_dir`.
+    /// Expects `layer.toml` and a `files/` subdirectory; both are required.
     ///
     /// # Errors
     ///
     /// * [`TmplError::Io`] on read failures.
-    /// * [`TmplError::Schema`] when `layer.toml` is unparseable or
-    ///   when a template file's path cannot be represented as a
-    ///   [`RenderedPath`].
+    /// * [`TmplError::Schema`] when `layer.toml` is unparseable or when a template file's path cannot be represented as a [`RenderedPath`].
     pub fn load(layer_dir: &Path) -> Result<Self, TmplError> {
         let meta_path = layer_dir.join("layer.toml");
         let meta_text = fs::read_to_string(&meta_path).map_err(|source| TmplError::Io {
@@ -88,11 +82,6 @@ impl Layer for FilesystemLayer {
 
     fn render(&self, ctx: &Context) -> Result<Patch, TmplError> {
         let mut env = minijinja::Environment::new();
-        // Preserve trailing newlines verbatim — files in a generated
-        // repo are line-oriented and `keep_trailing_newline=false`
-        // (the Jinja2 default) silently strips the final `\n`, which
-        // tools downstream of `tmpl apply` (rustfmt, lefthook,
-        // markdownlint) then flag as a missing-final-newline defect.
         env.set_keep_trailing_newline(true);
         let mut files = Vec::with_capacity(self.files.len());
         for f in &self.files {
@@ -121,10 +110,8 @@ impl Layer for FilesystemLayer {
 
 /// Recursive directory walk.
 ///
-/// Each entry is classified into `directory` / `symlink` / regular
-/// file. Symlinks are intentionally skipped — they are out of scope
-/// for layer templates (a layer's content should be self-contained
-/// and inspectable without following references).
+/// Each entry is classified into `directory` / `symlink` / regular file.
+/// Symlinks are intentionally skipped — they are out of scope for layer templates (a layer's content should be self-contained and inspectable without following references).
 fn collect_files(root: &Path, dir: &Path, out: &mut Vec<TemplateFile>) -> Result<(), TmplError> {
     let read = fs::read_dir(dir).map_err(|source| TmplError::Io {
         path: dir.to_owned(),
@@ -145,13 +132,8 @@ fn collect_files(root: &Path, dir: &Path, out: &mut Vec<TemplateFile>) -> Result
             continue;
         }
         if ft.is_symlink() {
-            // Layers carry their content directly; symlinks are out of scope.
             continue;
         }
-        // Anything else (regular file, plus the rare FIFO / socket /
-        // device which has no business inside a `files/` tree) is
-        // treated as a regular file. The subsequent `read_to_string`
-        // will surface non-UTF-8 / non-readable content as an error.
         out.push(load_template_file(root, &path)?);
     }
     Ok(())
@@ -189,8 +171,8 @@ fn load_template_file(root: &Path, file: &Path) -> Result<TemplateFile, TmplErro
     })
 }
 
-/// Strip a trailing `.j2` extension from the *file name only* (not from
-/// directory components). Returns `(templated, dest_path)`.
+/// Strip a trailing `.j2` extension from the *file name only* (not from directory components).
+/// Returns `(templated, dest_path)`.
 fn strip_j2_suffix(rel: &Utf8Path) -> (bool, Utf8PathBuf) {
     if rel.extension() == Some("j2") {
         let stem = rel.file_stem().unwrap_or("");
@@ -213,13 +195,9 @@ fn is_executable(path: &Path) -> bool {
 }
 
 #[cfg(not(unix))]
-fn is_executable(_path: &Path) -> bool {
+const fn is_executable(_path: &Path) -> bool {
     false
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -236,7 +214,7 @@ mod tests {
     fn strip_j2_suffix_handles_nested() {
         let (t, d) = strip_j2_suffix(Utf8Path::new("docs/README.md.j2"));
         assert!(t);
-        assert_eq!(d.as_str(), "docs/README.md");
+        assert_eq!(d, Utf8PathBuf::from("docs/README.md"));
     }
 
     #[test]
@@ -268,7 +246,6 @@ mod tests {
         let ctx = Context::for_test("acme", "P4suta");
         let patch = layer.render(&ctx).expect("render");
 
-        // .gitignore is copied verbatim, LICENSE is rendered.
         assert_eq!(patch.files.len(), 2);
         let gitignore = patch
             .files
@@ -325,10 +302,6 @@ mod tests {
 
     #[test]
     fn fs_layer_load_surfaces_io_error_when_files_root_is_a_regular_file() {
-        // `collect_files` calls `fs::read_dir(dir)`. If the path that
-        // claims to be `files/` is actually a regular file (someone
-        // committed `files` instead of `files/`), the read fails and
-        // we want the structured `TmplError::Io`.
         let dir = tempfile::tempdir().expect("tempdir");
         let layer_dir = dir.path().join("malformed");
         fs::create_dir_all(&layer_dir).expect("mkdir");
@@ -337,7 +310,6 @@ mod tests {
             "name = \"malformed\"\ndescription = \"x\"\n",
         )
         .expect("write layer.toml");
-        // `files` is a regular file, not a directory.
         fs::write(
             layer_dir.join("files"),
             "I should be a directory but I am not.",
@@ -351,9 +323,6 @@ mod tests {
 
     #[test]
     fn fs_layer_load_handles_layer_with_no_files_dir() {
-        // A layer with metadata but no files/ subdir should load to an
-        // empty patch — this is the "metadata-only" shape that early
-        // composition layers often take.
         let dir = tempfile::tempdir().expect("tempdir");
         let layer_dir = dir.path().join("empty");
         fs::create_dir_all(&layer_dir).expect("mkdir");
@@ -364,14 +333,11 @@ mod tests {
         .expect("write layer.toml");
         let layer = FilesystemLayer::load(&layer_dir).expect("load");
         let patch = layer.render(&Context::for_test("p", "o")).expect("render");
-        assert!(patch.files.is_empty());
+        assert_eq!(patch.files, Vec::new());
     }
 
     #[test]
     fn fs_layer_render_preserves_executable_bit_on_unix() {
-        // POSIX-only assertion. On non-Unix the helper returns false
-        // unconditionally, so this test would still pass but does not
-        // exercise the bit; gate it.
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -414,7 +380,6 @@ mod tests {
             "name = \"syntax-error\"\ndescription = \"x\"\n",
         )
         .expect("write layer.toml");
-        // Unmatched `{%` is a Jinja syntax error.
         fs::write(
             layer_dir.join("files/broken.txt.j2"),
             "{% if missing_endif }\n",
@@ -430,9 +395,6 @@ mod tests {
 
     #[test]
     fn fs_layer_load_surfaces_io_error_for_unreadable_template_file() {
-        // chmod 0000 a file inside files/ — `read_to_string` then
-        // fails with PermissionDenied, surfacing as `TmplError::Io`.
-        // Skip on root (where chmod 0000 doesn't actually deny reads).
         #[cfg(unix)]
         if !is_running_as_root() {
             use std::os::unix::fs::PermissionsExt;
@@ -452,17 +414,12 @@ mod tests {
                 .expect_err("unreadable template file must surface as Io");
             assert!(matches!(err, TmplError::Io { .. }));
 
-            // Restore permissions so tempdir cleanup can delete it.
             fs::set_permissions(&target, fs::Permissions::from_mode(0o644)).ok();
         }
     }
 
     #[cfg(unix)]
     fn is_running_as_root() -> bool {
-        // Avoid pulling in the `libc` crate just for a uid check;
-        // read `/proc/self/status` instead. Returns false on
-        // non-Linux POSIX (no procfs) — we accept the false negative
-        // there because the test only matters on Linux CI.
         fs::read_to_string("/proc/self/status").is_ok_and(|s| {
             s.lines()
                 .find_map(|l| l.strip_prefix("Uid:"))
@@ -473,9 +430,6 @@ mod tests {
 
     #[test]
     fn fs_layer_load_skips_symlinks() {
-        // Symlinks are out of scope for templates. Build a layer with
-        // one regular file and one symlink; expect the symlink to
-        // disappear from the patch.
         #[cfg(unix)]
         {
             use std::os::unix::fs::symlink;
@@ -505,11 +459,6 @@ mod tests {
 
     #[test]
     fn core_layer_gitignore_excludes_engine_target_dir() {
-        // The engine source `.template/tmpl/` ships in every templated
-        // repo and inevitably builds a `target/` directory under it
-        // when init.yml or the user runs `cargo build`. The core
-        // layer's rendered .gitignore must exclude that path so the
-        // build artefacts never reach the initial template commit.
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let core_layer = manifest_dir
             .parent()

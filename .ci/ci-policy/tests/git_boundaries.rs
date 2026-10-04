@@ -6,6 +6,30 @@ use ci_policy::local::{
 use common::Repository;
 
 #[test]
+fn a_push_cannot_omit_unchanged_workflows_from_the_common_ci_gate() {
+    let repository = Repository::new();
+    repository.write(
+        ".github/workflows/codeql.yml",
+        b"permissions:\n  security-events: write\n",
+    );
+    repository.write("README.md", b"Original\n");
+    let base = repository.commit(&[]);
+    repository.git(&["update-ref", "refs/remotes/origin/main", &base]);
+    repository.write("README.md", b"Updated\n");
+    let candidate = repository.commit(&[&base]);
+    let update = PushUpdate::parse(&format!(
+        "refs/heads/main {candidate} refs/heads/main {base}"
+    ))
+    .unwrap();
+    let files = pushed_files(repository.path(), "origin", &update).unwrap();
+    assert!(
+        files
+            .iter()
+            .any(|file| file.checked && file.path == ".github/workflows/codeql.yml")
+    );
+}
+
+#[test]
 fn old_external_links_do_not_block_an_unrelated_change() {
     let repository = Repository::new();
     repository.write("README.md", b"Original\n");

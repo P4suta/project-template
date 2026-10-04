@@ -27,6 +27,13 @@ fn standalone_source_cannot_consume_unbound_inputs() {
 }
 
 #[test]
+fn comparison_operators_do_not_hide_or_become_macro_inputs() {
+    use ci_policy::proof::validate_source;
+    assert!(validate_source(b"fn check(left: u8, right: u8) { assert!(left != right); }").is_ok());
+    assert!(validate_source(b"fn check(left: u8) { assert!(left != hidden!()); }").is_err());
+}
+
+#[test]
 fn standalone_proof_inventory_requires_unique_positive_and_negative_contracts() {
     let positive = vec!["production::proofs::required".to_owned()];
     let negative = "production::proofs::counterexample";
@@ -77,4 +84,23 @@ fn unreachable_contract_is_not_confused_with_an_unreachable_library_guard() {
     property["function"] = json!("kani::rustc_intrinsics::ptr_offset_from::<u8>");
     property["location"]["file"] = json!("library/kani_core/src/models.rs");
     assert!(validate_results(&receipt, &["required"], false).is_ok());
+}
+
+#[test]
+fn standard_library_guards_require_the_library_namespace_and_source() {
+    let mut receipt = json!({"verification_results":{"summary":{"status":"completed","executed":1,"failed":0,"successful":1},"results":[{"harness_id":"required","status":"Success","checks":[{"category":"assertion","status":"Success"},{"category":"cover","status":"Satisfied"},{"category":"cover","status":"Satisfied"},{"category":"assertion","status":"Unreachable","function":"core::num::<impl usize>::is_multiple_of","location":{"file":"/toolchain/lib/rustlib/src/rust/library/core/src/num/uint_macros.rs"}}]}]}});
+    for function in ["core::num::guard", "alloc::vec::guard", "std::ptr::guard"] {
+        receipt["verification_results"]["results"][0]["checks"][3]["function"] = json!(function);
+        assert!(
+            validate_results(&receipt, &["required"], false).is_ok(),
+            "{function}"
+        );
+    }
+    receipt["verification_results"]["results"][0]["checks"][3]["function"] =
+        json!("production::core::guard");
+    assert!(validate_results(&receipt, &["required"], false).is_err());
+    receipt["verification_results"]["results"][0]["checks"][3]["function"] = json!("core::guard");
+    receipt["verification_results"]["results"][0]["checks"][3]["location"]["file"] =
+        json!("src/lib.rs");
+    assert!(validate_results(&receipt, &["required"], false).is_err());
 }

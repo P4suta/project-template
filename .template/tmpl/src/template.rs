@@ -42,15 +42,14 @@ pub struct Loaded {
     pub template_root: PathBuf,
     /// Parsed `manifest.toml`.
     pub manifest: Manifest,
-    /// Layer registry — every layer the engine knows about, regardless
-    /// of whether it ends up in the selection.
+    /// Layer registry — every layer the engine knows about, regardless of whether it ends up in the selection.
     pub layers: BTreeMap<LayerName, Box<dyn Layer>>,
 }
 impl sealed::Sealed for Loaded {}
 impl TemplateState for Loaded {}
 
-/// A template whose manifest passed schema validation. The layer
-/// registry has been confirmed to be loadable end-to-end.
+/// A template whose manifest passed schema validation.
+/// The layer registry has been confirmed to be loadable end-to-end.
 #[derive(Debug)]
 pub struct Validated {
     /// Parsed manifest.
@@ -61,8 +60,7 @@ pub struct Validated {
 impl sealed::Sealed for Validated {}
 impl TemplateState for Validated {}
 
-/// A template with a satisfied selection — DAG resolved, no cycles, no
-/// orphan-rule violations, no conflicts.
+/// A template with a satisfied selection — DAG resolved, no cycles, no orphan-rule violations, no conflicts.
 #[derive(Debug)]
 pub struct Resolved {
     /// Layer registry retained so [`Self`] can be rendered.
@@ -75,8 +73,7 @@ pub struct Resolved {
 impl sealed::Sealed for Resolved {}
 impl TemplateState for Resolved {}
 
-/// A template whose patches have been built in-memory; no disk I/O has
-/// happened yet.
+/// A template whose patches have been built in-memory; no disk I/O has happened yet.
 #[derive(Debug)]
 pub struct Rendered {
     /// Patches in apply order.
@@ -89,8 +86,7 @@ pub struct Rendered {
 impl sealed::Sealed for Rendered {}
 impl TemplateState for Rendered {}
 
-/// A template that has been written to disk and recorded in
-/// `state.toml`.
+/// A template that has been written to disk and recorded in `state.toml`.
 #[derive(Debug)]
 pub struct Applied {
     /// Updated state file contents.
@@ -99,15 +95,13 @@ pub struct Applied {
 impl sealed::Sealed for Applied {}
 impl TemplateState for Applied {}
 
-/// Generic template wrapper. The `S` parameter encodes the lifecycle
-/// position; transition methods are implemented per state.
+/// Generic template wrapper.
+/// The `S` parameter encodes the lifecycle position; transition methods are implemented per state.
 #[derive(Debug)]
 pub struct Template<S: TemplateState> {
     /// State-specific payload.
     pub inner: S,
 }
-
-// --- Loaded -----------------------------------------------------------------
 
 impl Template<Loaded> {
     /// Load a template from a directory, expecting:
@@ -117,9 +111,7 @@ impl Template<Loaded> {
     ///
     /// # Errors
     ///
-    /// Bubbles up [`TmplError::Io`] / [`TmplError::Toml`] /
-    /// [`TmplError::Schema`] for unreadable, unparseable, or
-    /// schema-failing inputs.
+    /// Bubbles up [`TmplError::Io`] / [`TmplError::Toml`] / [`TmplError::Schema`] for unreadable, unparseable, or schema-failing inputs.
     pub fn load(template_root: &Path) -> Result<Self, TmplError> {
         let manifest = Manifest::load(&template_root.join("manifest.toml"))?;
         let layers_dir = template_root.join("layers");
@@ -154,18 +146,13 @@ impl Template<Loaded> {
 
     /// Lift to the `Validated` state.
     ///
-    /// Runs whole-registry sanity checks via
-    /// [`crate::dag::verify_registry`] (asymmetric `conflicts-with`
-    /// declarations, dangling references). Per-layer manifest schema
-    /// validation already happened during [`Self::load`]; this gate
-    /// catches the *cross-layer* invariants that no single layer can
-    /// detect on its own.
+    /// Runs whole-registry sanity checks via [`crate::dag::verify_registry`] (asymmetric `conflicts-with` declarations, dangling references).
+    /// Per-layer manifest schema validation already happened during [`Self::load`]; this gate catches the *cross-layer* invariants that no single layer can detect on its own.
     ///
     /// # Errors
     ///
-    /// Returns [`TmplError::Dag`] wrapping the first cross-layer
-    /// invariant violation. The full set is available via
-    /// `verify_registry` if a caller wants to enumerate.
+    /// Returns [`TmplError::Dag`] wrapping the first cross-layer invariant violation.
+    /// The full set is available via `verify_registry` if a caller wants to enumerate.
     pub fn validate(self) -> Result<Template<Validated>, TmplError> {
         let registry: HashMap<LayerName, LayerMeta> = self
             .inner
@@ -186,11 +173,9 @@ impl Template<Loaded> {
     }
 }
 
-// --- Validated --------------------------------------------------------------
-
 impl Template<Validated> {
-    /// Resolve a selection against the registry. Defaults to the
-    /// manifest's `default_selection` when the input slice is empty.
+    /// Resolve a selection against the registry.
+    /// Defaults to the manifest's `default_selection` when the input slice is empty.
     ///
     /// # Errors
     ///
@@ -222,21 +207,17 @@ impl Template<Validated> {
     }
 }
 
-// --- Resolved ---------------------------------------------------------------
-
 impl Template<Resolved> {
-    /// Render every layer in topological order. Pure; no I/O.
+    /// Render every layer in topological order.
+    /// Pure; no I/O.
     ///
     /// # Errors
     ///
-    /// Returns [`TmplError::Render`] when a layer's template raises a
-    /// `minijinja` error.
+    /// Returns [`TmplError::Render`] when a layer's template raises a `minijinja` error.
     ///
     /// # Panics
     ///
-    /// Panics if the resolved plan references a layer that is not in
-    /// the registry — this indicates an internal bug in
-    /// [`crate::dag::resolve`] rather than a user-observable error.
+    /// Panics if the resolved plan references a layer that is not in the registry — this indicates an internal bug in [`crate::dag::resolve`] rather than a user-observable error.
     pub fn render(self) -> Result<Template<Rendered>, TmplError> {
         let Resolved { layers, plan, ctx } = self.inner;
         let mut patches = Vec::with_capacity(plan.order.len());
@@ -252,25 +233,18 @@ impl Template<Resolved> {
     }
 }
 
-// --- Rendered ---------------------------------------------------------------
-
 impl Template<Rendered> {
-    /// Write every rendered patch to `dest` and record an updated
-    /// state file.
+    /// Write every rendered patch to `dest` and record an updated state file.
     ///
-    /// Phase A semantics: this is the *initial* apply. Re-applying
-    /// over a pre-existing state file is reserved for `tmpl add` /
-    /// `tmpl apply --update` (Phase B), which performs the 3-way
-    /// merge dance.
+    /// Phase A semantics: this is the *initial* apply.
+    /// Re-applying over a pre-existing state file is reserved for `tmpl add` / `tmpl apply --update` (Phase B), which performs the 3-way merge dance.
     ///
     /// # Errors
     ///
     /// [`TmplError::Io`] for filesystem failures.
     /// # Errors
     ///
-    /// Bubbles [`TmplError::Io`] for any filesystem-level failure
-    /// (directory create, file write, permission update, state-file
-    /// write).
+    /// Bubbles [`TmplError::Io`] for any filesystem-level failure (directory create, file write, permission update, state-file write).
     pub fn apply(self, dest: &Path) -> Result<Template<Applied>, TmplError> {
         let Rendered { patches, .. } = self.inner;
 
@@ -347,25 +321,19 @@ impl Template<Rendered> {
     }
 }
 
-// --- Applied ----------------------------------------------------------------
-
 impl Template<Applied> {
     /// Borrow the persisted state file contents.
     #[must_use]
-    pub fn state(&self) -> &State {
+    pub const fn state(&self) -> &State {
         &self.inner.state
     }
 
     /// Convenience accessor — Merkle root over the applied set.
     #[must_use]
-    pub fn merkle_root(&self) -> ContentHash {
+    pub const fn merkle_root(&self) -> ContentHash {
         self.inner.state.merkle_root
     }
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -433,9 +401,6 @@ description = "core layer"
 
     #[test]
     fn validate_rejects_asymmetric_conflicts_with_dag_error() {
-        // Two layers, A says it conflicts with B, B silent. The
-        // resolver would let them coexist in selections that mention
-        // only B; verify_registry must surface the inconsistency.
         let template_dir = tempfile::tempdir().expect("tempdir");
         fs::create_dir_all(template_dir.path().join("layers/a/files")).expect("mkdir a");
         fs::create_dir_all(template_dir.path().join("layers/b/files")).expect("mkdir b");
@@ -472,9 +437,6 @@ description = "core layer"
 
     #[test]
     fn load_propagates_filesystem_layer_failure() {
-        // A layer subdirectory exists but has no `layer.toml` —
-        // `FilesystemLayer::load` fails inside `Template::<Loaded>::load`'s
-        // iteration loop. Confirm the error bubbles up.
         let template_dir = tempfile::tempdir().expect("tempdir");
         fs::create_dir_all(template_dir.path().join("layers/broken")).expect("mkdir broken layer");
         fs::write(
@@ -489,10 +451,6 @@ description = "core layer"
 
     #[test]
     fn apply_surfaces_io_error_when_destination_is_a_regular_file() {
-        // `apply` joins each rendered file's relative path under
-        // `dest`. If `dest` itself is a regular file rather than a
-        // directory, the very first `fs::create_dir_all(parent)`
-        // call fails — surface the error rather than panicking.
         let template_dir = tempfile::tempdir().expect("tempdir");
         write_minimal_template(template_dir.path());
 
@@ -515,8 +473,6 @@ description = "core layer"
 
     #[test]
     fn load_skips_non_directory_entries_in_layers_dir() {
-        // A stray regular file under layers/ should be skipped
-        // silently — only directories are interpreted as layers.
         let template_dir = tempfile::tempdir().expect("tempdir");
         fs::create_dir_all(template_dir.path().join("layers/core/files")).expect("mkdir");
         fs::write(
@@ -529,7 +485,6 @@ description = "core layer"
             "name = \"core\"\ndescription = \"x\"\n",
         )
         .expect("write layer.toml");
-        // Stray file at layers/README.md — must be skipped.
         fs::write(template_dir.path().join("layers/README.md"), "# layers\n").expect("write");
 
         let loaded = Template::<Loaded>::load(template_dir.path()).expect("load");
@@ -567,9 +522,6 @@ description = "core layer"
 
     #[test]
     fn apply_propagates_executable_bit_on_unix() {
-        // Only meaningful on Unix targets; the chmod branch is gated
-        // behind cfg(unix) and we want it covered. On non-Unix the
-        // helper short-circuits and no chmod is performed.
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -616,8 +568,6 @@ description = "core layer"
 
     #[test]
     fn apply_creates_nested_directories() {
-        // Layer with a file under nested/ to drive the
-        // create_dir_all branch.
         let template_dir = tempfile::tempdir().expect("tempdir");
         fs::create_dir_all(template_dir.path().join("layers/core/files/docs/adr")).expect("mkdir");
         fs::write(
@@ -654,9 +604,6 @@ description = "core layer"
 
     #[test]
     fn idempotent_apply_produces_same_merkle_root() {
-        // Apply twice into two separate destinations; the Merkle root
-        // is a pure function of the layer set + context, so it must
-        // match.
         let template_dir = tempfile::tempdir().unwrap();
         write_minimal_template(template_dir.path());
 

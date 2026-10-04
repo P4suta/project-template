@@ -1,9 +1,7 @@
 //! Manifest model — `.template/manifest.toml` as a typed Rust value.
 //!
-//! The manifest enumerates the layers the engine knows about and the
-//! variables the render context expects. It is validated against
-//! [`SCHEMA`] (a JSON Schema embedded at compile time) before the rest
-//! of the engine sees it.
+//! The manifest enumerates the layers the engine knows about and the variables the render context expects.
+//! It is validated against [`SCHEMA`] (a JSON Schema embedded at compile time) before the rest of the engine sees it.
 
 use std::fs;
 use std::path::Path;
@@ -15,28 +13,25 @@ use crate::ctx::AnswerValue;
 use crate::error::TmplError;
 use crate::layer::LayerName;
 
-/// JSON Schema for `.template/manifest.toml` (loaded as JSON after
-/// `toml_edit` parsing). Embedded at compile time so the engine can
-/// validate without accessing the filesystem.
+/// JSON Schema for `.template/manifest.toml` (loaded as JSON after `toml_edit` parsing).
+/// Embedded at compile time so the engine can validate without accessing the filesystem.
 pub const SCHEMA: &str = include_str!("../schema/manifest.schema.json");
 
 /// Top-level manifest structure.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
-    /// Manifest schema version. Bumped when [`SCHEMA`] changes shape.
+    /// Manifest schema version.
+    /// Bumped when [`SCHEMA`] changes shape.
     pub schema_version: u32,
     /// Engine version this manifest is known to be compatible with.
-    /// Informational; the engine surfaces a warning on mismatch but
-    /// still attempts to load.
+    /// Informational; the engine surfaces a warning on mismatch but still attempts to load.
     pub engine_version: SmolStr,
-    /// Default layer selection — what `tmpl apply` uses if `--layers`
-    /// is omitted. Useful for `init.yml` to call `tmpl apply` with no
-    /// flags.
+    /// Default layer selection — what `tmpl apply` uses if `--layers` is omitted.
+    /// Useful for `init.yml` to call `tmpl apply` with no flags.
     #[serde(default)]
     pub default_selection: Vec<LayerName>,
-    /// Variables that the render context will surface as Jinja globals
-    /// under `answers.*`.
+    /// Variables that the render context will surface as Jinja globals under `answers.*`.
     #[serde(default)]
     pub variables: Vec<VariableDef>,
 }
@@ -81,18 +76,13 @@ impl Manifest {
     ///
     /// * [`TmplError::Io`] — filesystem read failed.
     /// * [`TmplError::Toml`] — TOML parse failed.
-    /// * [`TmplError::Schema`] — JSON Schema validation rejected the
-    ///   document.
+    /// * [`TmplError::Schema`] — JSON Schema validation rejected the document.
     pub fn load(path: &Path) -> Result<Self, TmplError> {
         let text = fs::read_to_string(path).map_err(|source| TmplError::Io {
             path: path.to_owned(),
             source,
         })?;
 
-        // Parse TOML → serde_json::Value via a round-trip — boon (the JSON
-        // Schema validator) operates on `serde_json::Value`, but the
-        // authoring surface is TOML. The two formats are isomorphic for
-        // the schema's data model.
         let toml_value: toml_edit::DocumentMut =
             text.parse().map_err(|source| TmplError::Toml {
                 path: path.to_owned(),
@@ -111,7 +101,6 @@ impl Manifest {
                 message: format!("intermediate JSON parse failed: {e}"),
             })?;
 
-        // Compile and run the schema validator.
         let mut compiler = boon::Compiler::new();
         let schema_value: serde_json::Value =
             serde_json::from_str(SCHEMA).map_err(|e| TmplError::Schema {
@@ -138,7 +127,6 @@ impl Manifest {
             });
         }
 
-        // Final deserialise into the typed model.
         let manifest: Self = serde_json::from_value(json_value).map_err(|e| TmplError::Schema {
             path: path.to_owned(),
             message: format!("typed deserialise failed: {e}"),
@@ -147,11 +135,9 @@ impl Manifest {
     }
 }
 
-/// Convert a `toml_edit::Item` into a `serde_json::Value` for schema
-/// validation.
+/// Convert a `toml_edit::Item` into a `serde_json::Value` for schema validation.
 ///
-/// TOML and JSON share a data model — string / int / float / bool /
-/// array / table — so the conversion is mechanical.
+/// TOML and JSON share a data model — string / int / float / bool / array / table — so the conversion is mechanical.
 fn toml_to_json(item: &toml_edit::Item) -> serde_json::Value {
     use serde_json::Value;
     match item {
@@ -221,8 +207,8 @@ mod tests {
         let m = Manifest::load(&p).expect("minimal manifest is valid");
         assert_eq!(m.schema_version, 1);
         assert_eq!(m.engine_version.as_str(), "0.1.0");
-        assert!(m.default_selection.is_empty());
-        assert!(m.variables.is_empty());
+        assert_eq!(m.default_selection, Vec::new());
+        assert_eq!(m.variables, Vec::new());
     }
 
     #[test]
@@ -290,7 +276,6 @@ required = false
     #[test]
     fn load_rejects_schema_violation_missing_required_field() {
         let dir = tempfile::tempdir().expect("tempdir");
-        // Missing `engine_version`.
         let p = write(dir.path(), "schema_version = 1\n");
         let err = Manifest::load(&p).expect_err("must fail");
         assert!(matches!(err, TmplError::Schema { .. }));
@@ -299,7 +284,6 @@ required = false
     #[test]
     fn load_rejects_schema_violation_bad_layer_name() {
         let dir = tempfile::tempdir().expect("tempdir");
-        // Uppercase letter violates the layer-name pattern.
         let body =
             "schema_version = 1\nengine_version = \"0.1.0\"\ndefault_selection = [\"BAD-NAME\"]\n";
         let p = write(dir.path(), body);
@@ -309,7 +293,6 @@ required = false
 
     #[test]
     fn toml_value_to_json_handles_each_variant() {
-        // Build a toml document that exercises every leaf kind.
         let src = r#"
 schema_version = 1
 engine_version = "0.1.0"
@@ -324,8 +307,6 @@ name = "y"
 description = "y"
 type = "int"
 "#;
-        // Indirectly exercises toml_to_json + toml_value_to_json by
-        // round-tripping through Manifest::load.
         let dir = tempfile::tempdir().expect("tempdir");
         let p = write(dir.path(), src);
         let m = Manifest::load(&p).expect("valid manifest");
@@ -334,9 +315,6 @@ type = "int"
 
     #[test]
     fn toml_to_json_preserves_floats_and_datetime() {
-        // Floats and datetimes don't appear in the manifest schema, but
-        // the helper supports them for future variable types. Drive the
-        // helpers directly so the variants are covered.
         let doc: toml_edit::DocumentMut = "f = 1.5\n[t]\ndate = 1979-05-27T07:32:00Z\n"
             .parse()
             .expect("valid toml");
@@ -350,8 +328,6 @@ type = "int"
 
     #[test]
     fn toml_to_json_handles_inline_table_and_array() {
-        // Inline tables and arrays-of-leaves go through
-        // `toml_value_to_json`, not `toml_to_json`. Cover them.
         let doc: toml_edit::DocumentMut = "x = [1, 2, 3]\ny = { a = 1, b = 2 }\n"
             .parse()
             .expect("valid toml");
@@ -394,13 +370,8 @@ type = "int"
 
     #[test]
     fn toml_to_json_handles_none() {
-        // An empty document parses to an Item::None at the root key
-        // when accessed via `.get(...)`. We can exercise the None arm
-        // via an empty toml table reference.
         let doc: toml_edit::DocumentMut = "".parse().expect("valid empty toml");
         let json = toml_to_json(doc.as_item());
-        // Empty root parses to an empty table — confirm and then drive
-        // the None arm via a missing index.
         assert!(json.is_object());
         let missing = doc
             .as_item()

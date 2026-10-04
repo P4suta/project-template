@@ -19,6 +19,14 @@ struct Cli {
 }
 
 enum Action {
+    ProjectCheck {
+        root: PathBuf,
+        phase: ci_policy::project::protocol::Phase,
+        suite: String,
+        cache: Option<PathBuf>,
+        index: bool,
+        revision: Option<String>,
+    },
     TemplatePatch {
         root: PathBuf,
         rendered: PathBuf,
@@ -30,6 +38,9 @@ enum Action {
         output: PathBuf,
     },
     Check {
+        root: PathBuf,
+    },
+    SourceCheck {
         root: PathBuf,
     },
     Export {
@@ -107,6 +118,29 @@ impl Cli {
             .version(env!("CARGO_PKG_VERSION"))
             .about("Validate reproducible CI configuration and fail-closed required jobs")
             .subcommand_required(true)
+            .subcommand(
+                Command::new("project-check")
+                    .arg(root_argument())
+                    .arg(
+                        Arg::new("phase")
+                            .long("phase")
+                            .default_value("development")
+                            .value_parser(["commit", "development"]),
+                    )
+                    .arg(Arg::new("suite").long("suite").default_value("local"))
+                    .arg(
+                        Arg::new("cache-directory")
+                            .long("cache-directory")
+                            .value_parser(PathBufValueParser::new()),
+                    )
+                    .arg(
+                        Arg::new("index")
+                            .long("index")
+                            .action(clap::ArgAction::SetTrue)
+                            .conflicts_with("revision"),
+                    )
+                    .arg(Arg::new("revision").long("revision")),
+            )
             .subcommand(
                 Command::new("template-patch")
                     .arg(root_argument())
@@ -191,6 +225,7 @@ impl Cli {
                         .value_parser(PathBufValueParser::new()),
                 ),
             )
+            .subcommand(Command::new("source-check").arg(root_argument()))
             .subcommand(
                 Command::new("pre-push")
                     .arg(Arg::new("remote").required(true))
@@ -232,6 +267,18 @@ impl Cli {
                 .context("a required argument is missing")
         };
         let command = match name {
+            "project-check" => Action::ProjectCheck {
+                root: get_path("root")?,
+                phase: if get_string("phase")? == "commit" {
+                    ci_policy::project::protocol::Phase::Commit
+                } else {
+                    ci_policy::project::protocol::Phase::Development
+                },
+                suite: get_string("suite")?,
+                cache: matches.get_one::<PathBuf>("cache-directory").cloned(),
+                index: matches.get_flag("index"),
+                revision: matches.get_one::<String>("revision").cloned(),
+            },
             "template-patch" => Action::TemplatePatch {
                 root: get_path("root")?,
                 rendered: get_path("rendered")?,
@@ -283,6 +330,9 @@ impl Cli {
                 output: get_path("output")?,
             },
             "check" => Action::Check {
+                root: get_path("root")?,
+            },
+            "source-check" => Action::SourceCheck {
                 root: get_path("root")?,
             },
             "verify-index" => Action::VerifyIndex {
@@ -355,6 +405,23 @@ struct Job {
 
 fn run() -> Result<()> {
     match Cli::parse()?.command {
+        Action::ProjectCheck {
+            root,
+            phase,
+            suite,
+            cache,
+            index,
+            revision,
+        } => {
+            let scope = if let Some(revision) = revision.as_deref() {
+                ci_policy::project::Scope::Revision(ci_policy::project::Revision::parse(revision)?)
+            } else if index {
+                ci_policy::project::Scope::Index
+            } else {
+                ci_policy::project::Scope::Working
+            };
+            ci_policy::project::run(&root, scope, phase, &suite, cache.as_deref())?;
+        }
         Action::TemplatePatch {
             root,
             rendered,
@@ -427,6 +494,7 @@ fn run() -> Result<()> {
         Action::Check { root } => {
             ci_policy::local::verify_workflows(&root)?;
         }
+        Action::SourceCheck { root } => ci_policy::local::verify_source(&root)?,
         Action::Export {
             inventory: path,
             output,

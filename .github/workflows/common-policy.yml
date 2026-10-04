@@ -14,10 +14,6 @@ jobs:
           persist-credentials: false
       - id: policy
         uses: $/.github/actions/ci-policy
-      - name: Install pinned workflow validators
-        env:
-          POLICY: ${{ steps.policy.outputs.executable }}
-        run: '"$POLICY" install-tools --workflow-only'
       - name: Verify the caller's committed workflows and actions
         env:
           POLICY: ${{ steps.policy.outputs.executable }}

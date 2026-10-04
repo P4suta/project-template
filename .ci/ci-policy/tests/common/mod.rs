@@ -41,7 +41,11 @@ impl Repository {
     }
 
     pub fn git_command(&self) -> Command {
-        let mut command = Command::new("git");
+        self.command("git")
+    }
+
+    pub fn command(&self, program: impl AsRef<std::ffi::OsStr>) -> Command {
+        let mut command = Command::new(program);
         command.current_dir(self.path());
         for name in [
             "GIT_DIR",
