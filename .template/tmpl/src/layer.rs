@@ -1,10 +1,7 @@
 //! Layer trait and its supporting newtypes.
 //!
-//! A *layer* is one composable unit of project scaffolding: a set of
-//! template files paired with a metadata block that declares the layer's
-//! place in the DAG. The trait keeps the surface narrow so that tests can
-//! drive the engine with hand-built mock layers and the production path
-//! can serve filesystem-loaded layers through the same API.
+//! A *layer* is one composable unit of project scaffolding: a set of template files paired with a metadata block that declares the layer's place in the DAG.
+//! The trait keeps the surface narrow so that tests can drive the engine with hand-built mock layers and the production path can serve filesystem-loaded layers through the same API.
 
 use std::fmt;
 
@@ -18,20 +15,15 @@ use crate::error::TmplError;
 
 mod path;
 
-// ---------------------------------------------------------------------------
-// Newtypes — encode invariants in the type system rather than at call sites.
-// ---------------------------------------------------------------------------
-
-/// A layer's identifier. Stored as a `SmolStr` so the common case (short
-/// lower-case-kebab names like `core` / `rust-workspace`) lives inline
-/// without heap allocation.
+/// A layer's identifier.
+/// Stored as a `SmolStr` so the common case (short lower-case-kebab names like `core` / `rust-workspace`) lives inline without heap allocation.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct LayerName(SmolStr);
 
 impl LayerName {
-    /// Construct a layer name. Names must be non-empty and contain only
-    /// `[a-z0-9-]` — keeps cross-platform path compatibility.
+    /// Construct a layer name.
+    /// Names must be non-empty and contain only `[a-z0-9-]` — keeps cross-platform path compatibility.
     ///
     /// # Errors
     ///
@@ -66,16 +58,14 @@ impl fmt::Display for LayerName {
 
 /// A capability a layer can `provides` or `requires`.
 ///
-/// Capabilities are the abstract resources that bind layers together
-/// (e.g. `container-runtime`, `cargo-workspace`, `git-hooks`); only
-/// one layer in any selection may `provides` a given capability — see
-/// [`crate::dag::resolve`].
+/// Capabilities are the abstract resources that bind layers together (e.g. `container-runtime`, `cargo-workspace`, `git-hooks`); only one layer in any selection may `provides` a given capability — see [`crate::dag::resolve`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Capability(SmolStr);
 
 impl Capability {
-    /// Construct a capability. Same charset rules as [`LayerName`].
+    /// Construct a capability.
+    /// Same charset rules as [`LayerName`].
     ///
     /// # Errors
     ///
@@ -107,8 +97,8 @@ impl fmt::Display for Capability {
     }
 }
 
-/// Parse failure for [`LayerName`] / [`Capability`]. Held separately so
-/// `TmplError` can wrap it with extra context where the parse happens.
+/// Parse failure for [`LayerName`] / [`Capability`].
+/// Held separately so `TmplError` can wrap it with extra context where the parse happens.
 #[derive(Debug, thiserror::Error)]
 pub enum NameError {
     /// The name was empty.
@@ -132,7 +122,8 @@ impl<'de> Deserialize<'de> for RenderedPath {
 }
 
 impl RenderedPath {
-    /// Validate and wrap a path. The path must be relative, non-empty,
+    /// Validate and wrap a path.
+    /// The path must be relative, non-empty,
     /// and must not contain a `..` component.
     ///
     /// # Errors
@@ -171,18 +162,11 @@ pub enum PathError {
     Traversal(Utf8PathBuf),
 }
 
-// ---------------------------------------------------------------------------
-// Layer trait + Patch
-// ---------------------------------------------------------------------------
-
-/// Static, declared metadata about a layer. Persisted as
-/// `.template/layers/<name>/layer.toml`.
+/// Static, declared metadata about a layer.
+/// Persisted as `.template/layers/<name>/layer.toml`.
 ///
-/// Dependencies between layers are mediated by *capabilities* rather than
-/// by layer names, so a generated repository can swap one implementation
-/// of a capability for another without touching consumers. The orphan
-/// rule for `provides` (one provider per capability per selection) makes
-/// the swap explicit at resolution time rather than at runtime.
+/// Dependencies between layers are mediated by *capabilities* rather than by layer names, so a generated repository can swap one implementation of a capability for another without touching consumers.
+/// The orphan rule for `provides` (one provider per capability per selection) makes the swap explicit at resolution time rather than at runtime.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LayerMeta {
@@ -190,25 +174,21 @@ pub struct LayerMeta {
     pub name: LayerName,
     /// One-line human-readable description.
     pub description: SmolStr,
-    /// Capabilities this layer needs from some other layer in the
-    /// selection. Each entry must be `provides`d by exactly one selected
-    /// layer.
+    /// Capabilities this layer needs from some other layer in the selection.
+    /// Each entry must be `provides`d by exactly one selected layer.
     #[serde(default)]
     pub requires: Vec<Capability>,
     /// Capabilities this layer makes available to dependents.
     #[serde(default)]
     pub provides: Vec<Capability>,
-    /// Layer names this layer cannot coexist with. Mutual exclusion is
-    /// expressed at the layer level (not the capability level) so that
-    /// "either-or" choices like Docker-vs-bare-metal can be authored
-    /// without inventing pseudo-capabilities.
+    /// Layer names this layer cannot coexist with.
+    /// Mutual exclusion is expressed at the layer level (not the capability level) so that "either-or" choices like Docker-vs-bare-metal can be authored without inventing pseudo-capabilities.
     #[serde(default, rename = "conflicts-with")]
     pub conflicts_with: Vec<LayerName>,
 }
 
-/// A rendered, in-memory file produced by a layer. Disk I/O is the
-/// concern of [`crate::template::Template::apply`]; the render phase is
-/// pure.
+/// A rendered, in-memory file produced by a layer.
+/// Disk I/O is the concern of [`crate::template::Template::apply`]; the render phase is pure.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RenderedFile {
     /// Destination path relative to the repository root.
@@ -229,27 +209,21 @@ pub struct Patch {
     pub files: Vec<RenderedFile>,
 }
 
-/// A layer is anything that can declare its metadata and render itself
-/// into a [`Patch`] given a [`Context`].
+/// A layer is anything that can declare its metadata and render itself into a [`Patch`] given a [`Context`].
 ///
-/// Implementations must be pure: the same `(layer, ctx)` pair must
-/// produce the same `Patch`.
+/// Implementations must be pure: the same `(layer, ctx)` pair must produce the same `Patch`.
 pub trait Layer: fmt::Debug + Send + Sync {
     /// Metadata describing the layer's place in the DAG.
     fn meta(&self) -> &LayerMeta;
-    /// Render the layer against `ctx`. Side-effect-free.
+    /// Render the layer against `ctx`.
+    /// Side-effect-free.
     ///
     /// # Errors
     ///
     /// Returns [`TmplError::Render`] if a template fails to evaluate;
-    /// other variants of [`TmplError`] for I/O / schema failures
-    /// during file collection.
+    /// other variants of [`TmplError`] for I/O / schema failures during file collection.
     fn render(&self, ctx: &Context) -> Result<Patch, TmplError>;
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

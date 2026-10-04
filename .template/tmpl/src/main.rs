@@ -1,5 +1,5 @@
-//! `tmpl` binary entry point. Dispatches sub-commands; each sub-command
-//! is a thin shell over the library API in [`tmpl::template`].
+//! `tmpl` binary entry point.
+//! Dispatches sub-commands; each sub-command is a thin shell over the library API in [`tmpl::template`].
 
 #![deny(missing_docs)]
 
@@ -28,12 +28,12 @@ use tmpl::template::{Loaded, Template};
     long_about = None,
 )]
 struct Cli {
-    /// Template root (directory containing `manifest.toml`). Defaults
-    /// to `.template` relative to the current working directory.
+    /// Template root (directory containing `manifest.toml`).
+    /// Defaults to `.template` relative to the current working directory.
     #[arg(long, global = true, default_value = ".template")]
     template_root: PathBuf,
-    /// Destination directory for `apply` / `add`. Defaults to the
-    /// current working directory.
+    /// Destination directory for `apply` / `add`.
+    /// Defaults to the current working directory.
     #[arg(long, global = true, default_value = ".")]
     dest: PathBuf,
     /// Sub-command.
@@ -44,11 +44,10 @@ struct Cli {
 /// Sub-commands.
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Apply a layer selection to the destination, writing the
-    /// rendered files and recording state.
+    /// Apply a layer selection to the destination, writing the rendered files and recording state.
     Apply {
-        /// Comma-separated layer names. Defaults to the manifest's
-        /// `default_selection`.
+        /// Comma-separated layer names.
+        /// Defaults to the manifest's `default_selection`.
         #[arg(long, value_delimiter = ',')]
         layers: Vec<String>,
         /// Repository name for the render context.
@@ -61,10 +60,8 @@ enum Command {
         #[arg(long, default_value = "")]
         project_description: String,
     },
-    /// Add a single layer on top of an already-applied state. Re-runs
-    /// the resolution + render pipeline with the existing layer set
-    /// extended by the new layer; existing files are re-rendered so
-    /// they stay coherent with the updated capability graph.
+    /// Add a single layer on top of an already-applied state.
+    /// Re-runs the resolution + render pipeline with the existing layer set extended by the new layer; existing files are re-rendered so they stay coherent with the updated capability graph.
     Add {
         /// Layer to add.
         layer: String,
@@ -77,15 +74,14 @@ enum Command {
         /// Optional one-line description.
         #[arg(long, default_value = "")]
         project_description: String,
-        /// Overwrite locally-edited files. Without `--force`, the
-        /// command refuses to proceed if any previously-rendered file
-        /// has been modified on disk.
+        /// Overwrite locally-edited files.
+        /// Without `--force`, the command refuses to proceed if any previously-rendered file has been modified on disk.
         #[arg(long, default_value_t = false)]
         force: bool,
     },
-    /// Remove an applied layer. Deletes the files the layer
-    /// contributed and updates state. Refuses if any of those files
-    /// have been modified locally; pass `--force` to delete anyway.
+    /// Remove an applied layer.
+    /// Deletes the files the layer contributed and updates state.
+    /// Refuses if any of those files have been modified locally; pass `--force` to delete anyway.
     Remove {
         /// Layer to remove.
         layer: String,
@@ -93,25 +89,24 @@ enum Command {
         #[arg(long, default_value_t = false)]
         force: bool,
     },
-    /// Run manifest + layer DAG soundness checks. Used by the engine's
-    /// own CI as well as `just verify-template`.
+    /// Run manifest + layer DAG soundness checks.
+    /// Used by the engine's own CI as well as `just verify-template`.
     Verify,
     /// Print the current applied state, if any.
     Status,
-    /// Print the paths recorded in `.template/state.toml`, one per
-    /// line (or NUL-separated under `--null` for `xargs -0`). Used by
-    /// `init.yml` to drive selective `git add` / `git rm` after apply.
+    /// Print the paths recorded in `.template/state.toml`, one per line (or NUL-separated under `--null` for `xargs -0`).
+    /// Used by `init.yml` to drive selective `git add` / `git rm` after apply.
     AppliedFiles {
         /// Use NUL (`\0`) as the separator instead of newline.
         #[arg(long, default_value_t = false)]
         null: bool,
     },
-    /// Delete `.template/` and graduate from the engine. Idempotent —
+    /// Delete `.template/` and graduate from the engine.
+    /// Idempotent —
     /// re-running on a sealed repo is a structured no-op.
     Seal,
-    /// Generate a new project from a remote GitHub template via the
-    /// `gh` CLI. Equivalent to `gh repo create --template owner/repo
-    /// dest --clone` plus an automatic `bash .template/bootstrap.sh`.
+    /// Generate a new project from a remote GitHub template via the `gh` CLI.
+    /// Equivalent to `gh repo create --template owner/repo dest --clone` plus an automatic `bash .template/bootstrap.sh`.
     New {
         /// Source template, e.g. `gh:P4suta/project-template`.
         source: String,
@@ -123,8 +118,8 @@ enum Command {
     },
 }
 
-/// Bundled inputs for [`apply`]. Grouped into a struct so the function
-/// signature stays under the four-argument cap enforced by clippy.toml.
+/// Bundled inputs for [`apply`].
+/// Grouped into a struct so the function signature stays under the four-argument cap enforced by clippy.toml.
 struct ApplyInvocation<'a> {
     template_root: &'a Path,
     dest: &'a Path,
@@ -141,8 +136,8 @@ struct AddInvocation<'a> {
     force: bool,
 }
 
-/// Repository facts used to build the [`Context`]. Bundled to keep
-/// signatures narrow and to mirror the manifest's variable shape.
+/// Repository facts used to build the [`Context`].
+/// Bundled to keep signatures narrow and to mirror the manifest's variable shape.
 struct ProjectFacts<'a> {
     name: &'a str,
     owner: &'a str,
@@ -234,9 +229,6 @@ fn add(invocation: &AddInvocation<'_>) -> miette::Result<()> {
         return Ok(());
     }
 
-    // Drift check: every previously-applied layer's files must still
-    // match the recorded hashes, otherwise we'd silently overwrite
-    // user edits when re-applying.
     if !invocation.force {
         let drift = collect_drift(invocation.dest, &existing).into_diagnostic()?;
         if !drift.is_empty() {
@@ -286,13 +278,9 @@ fn remove(dest: &Path, layer: &str, force: bool) -> miette::Result<()> {
         }
     }
 
-    // Snapshot the entry's file list before mutating state — the
-    // `entry` borrow is invalidated by `state.applied.remove`.
     let entry_clone = entry.clone();
     state.applied.remove(&target);
 
-    // Delete files on disk. Missing files are tolerated (deletion is
-    // an idempotent operation) but I/O failures are not.
     let mut removed_count: usize = 0;
     for f in &entry_clone.files {
         let abs = dest.join(f.path.as_path().as_str());
@@ -311,7 +299,6 @@ fn remove(dest: &Path, layer: &str, force: bool) -> miette::Result<()> {
         prune_empty_parents(dest, &abs);
     }
 
-    // Recompute the Merkle root over the surviving entries.
     let mut hashes: BTreeMap<LayerName, ContentHash> = BTreeMap::new();
     for (name, entry) in &state.applied {
         hashes.insert(name.clone(), entry.content_hash);
@@ -319,8 +306,6 @@ fn remove(dest: &Path, layer: &str, force: bool) -> miette::Result<()> {
     state.merkle_root = merkle_root(&hashes);
 
     if state.applied.is_empty() {
-        // No layers left — remove state.toml itself, leaving an empty
-        // `.template/` directory if it was used.
         if state_path.exists() {
             fs::remove_file(&state_path).map_err(|e| {
                 miette::miette!(
@@ -344,16 +329,14 @@ fn remove(dest: &Path, layer: &str, force: bool) -> miette::Result<()> {
     Ok(())
 }
 
-/// Walk up the parent chain of `start` deleting empty directories
-/// until a non-empty directory or `dest` itself is reached. Errors are
-/// silently swallowed: best-effort cleanup, not authoritative.
+/// Walk up the parent chain of `start` deleting empty directories until a non-empty directory or `dest` itself is reached.
+/// Errors are silently swallowed: best-effort cleanup, not authoritative.
 fn prune_empty_parents(dest: &Path, start: &Path) {
     let mut current = start.parent();
     while let Some(dir) = current {
         if dir == dest || !dir.starts_with(dest) {
             return;
         }
-        // Read the directory; bail if anything goes wrong.
         let Ok(mut iter) = fs::read_dir(dir) else {
             return;
         };
@@ -500,8 +483,7 @@ fn seal(template_root: &Path) -> miette::Result<()> {
     Ok(())
 }
 
-/// Iterate every applied layer and collect drift reports for the ones
-/// that have any modified or missing files.
+/// Iterate every applied layer and collect drift reports for the ones that have any modified or missing files.
 fn collect_drift(
     dest: &Path,
     state: &State,
@@ -516,16 +498,10 @@ fn collect_drift(
     Ok(out)
 }
 
-/// Render a `tmpl::add` / `tmpl::remove` drift conflict as a
-/// structured `miette` error.
+/// Render a `tmpl::add` / `tmpl::remove` drift conflict as a structured `miette` error.
 fn drift_error(reports: &[(LayerName, DriftReport)], code: &'static str) -> miette::Report {
     let mut details = String::new();
     for (layer, report) in reports {
-        // `Write` is brought into scope as `_` at file top so the
-        // `writeln!` calls resolve without polluting the public surface.
-        // Writing to a `String` is infallible — surface the
-        // theoretical error explicitly so a future API change cannot
-        // hide a regression.
         writeln!(details, "layer '{layer}':").expect("write to String never fails");
         for p in &report.modified {
             writeln!(details, "    modified: {}", p.as_path())

@@ -20,6 +20,7 @@ Development checks have a total budget of thirty minutes; longer campaigns requi
 Push checks use each supplied commit identity and reuse only matching successful evidence.
 Mutable external checks run every time.
 Global hooks retain signing, introduced-history secret checks, owner push holds, skill maintenance, and repository hooks.
+Repository hooks use the owner's current configuration while fixed verification commands inspect each exact pushed revision.
 
 Run checks in a private checkout whose HEAD identifies the captured source without changing the owner's index or refs.
 Bound regular-file snapshots to 64 MiB, reject links and external repositories, and normalize native paths before invoking external tools.
@@ -37,7 +38,11 @@ Retain hosted permissions and release protections; ordinary project verification
 Kani imports production decisions for phase selection, exact evidence reuse, cumulative budgets, complete coverage, deadline outcomes, and permitted Cargo operations.
 Required proof inventories include reachable covers and a deliberately false claim that must fail with the expected assertion.
 Native integration tests exercise staged HEAD identity, pushed revisions, cache invalidation, missing contracts, CI bypass attempts, and descendant cleanup after success, failure, and timeout.
+Kani also checks hook-root selection by reference identity and NUL-delimited path encoding for arbitrary paths up to 32 bytes.
+Integration tests exercise large file inventories, literal filenames, and native executable modes.
 Engine proofs check every 64-byte hash input and portable path validation for arbitrary byte strings up to 32 bytes, with complete unwinding and independent component checks.
 Native tests exercise the public path constructor and deserialization boundary on Mac and Windows.
 The filesystem, Git, mise, parsers, cryptographic hash implementation, operating system process isolation, tool outputs, and each project's implementation remain external trust boundaries.
 Checks must declare their relevant input and environment dependencies; a receipt does not prove undeclared external behavior or malicious subprocess isolation.
+The engine rejects lint `allow` attributes and unused `expect` attributes.
+Duplicate dependency exceptions name only the current upstream collisions in bitflags, hashbrown, syn, and unicode-width; new collisions still fail Clippy.

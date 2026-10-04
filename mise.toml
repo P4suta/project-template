@@ -1,7 +1,8 @@
 [tools]
-rust = "1.99.0"
+rust = { version = "1.99.0", components = ["rustfmt", "clippy"] }
 just = "1.58.0"
 lefthook = "2.1.15"
+typos = "1.50.3"
 "github:crate-ci/committed" = "1.1.11"
 "cargo:cargo-nextest" = "0.9.146"
 "cargo:cargo-deny" = "0.20.2"

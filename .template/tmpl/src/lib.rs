@@ -1,8 +1,6 @@
 //! `tmpl` — the layer-DAG template engine that drives `project-template`.
 //!
-//! The engine treats template expansion as the *pure functional evaluation
-//! of a layer DAG*. The choices at each architectural seam map to concrete
-//! algorithms and data structures rather than ad-hoc string substitution:
+//! The engine treats template expansion as the *pure functional evaluation of a layer DAG*. The choices at each architectural seam map to concrete algorithms and data structures rather than ad-hoc string substitution:
 //!
 //! | Concept                | Realised by                                 |
 //! |------------------------|---------------------------------------------|
@@ -15,10 +13,8 @@
 //! | Idempotency state      | BLAKE3 Merkle root + applied layer set.     |
 //! | Drift over user edits  | (Phase B) git-style 3-way merge.            |
 //!
-//! The user-facing surface lives in [`template::Template`], a type-state
-//! machine that walks `Loaded → Validated → Resolved → Rendered → Applied`.
-//! Illegal transitions (`apply` on a not-yet-rendered template, etc.) are
-//! rejected at compile time.
+//! The user-facing surface lives in [`template::Template`], a type-state machine that walks `Loaded → Validated → Resolved → Rendered → Applied`.
+//! Illegal transitions (`apply` on a not-yet-rendered template, etc.) are rejected at compile time.
 
 #![deny(missing_docs)]
 #![deny(rustdoc::broken_intra_doc_links)]

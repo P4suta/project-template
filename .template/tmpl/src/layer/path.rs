@@ -29,7 +29,7 @@ pub(super) fn validate(bytes: &[u8]) -> Result<(), Error> {
     Ok(())
 }
 
-fn rooted(bytes: &[u8]) -> bool {
+const fn rooted(bytes: &[u8]) -> bool {
     matches!(bytes, [b'/' | b'\\', ..] | [_, b':', ..])
 }
 
@@ -42,7 +42,7 @@ enum Segment {
 }
 
 impl Segment {
-    fn observe(self, byte: u8) -> Self {
+    const fn observe(self, byte: u8) -> Self {
         match (self, byte) {
             (Self::Empty, b'.') => Self::Dot,
             (Self::Dot, b'.') => Self::Parent,

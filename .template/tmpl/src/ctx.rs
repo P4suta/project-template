@@ -1,10 +1,8 @@
-//! Render context — the immutable input to every layer's `render`
-//! call. Built once from repository metadata + user-provided answers,
+//! Render context — the immutable input to every layer's `render` call.
+//! Built once from repository metadata + user-provided answers,
 //! then handed to every layer in the resolved order.
 //!
-//! The context is *the* place where pure-functional render tests
-//! ground their fixtures: identical contexts produce identical
-//! patches, every time.
+//! The context is *the* place where pure-functional render tests ground their fixtures: identical contexts produce identical patches, every time.
 
 use std::collections::BTreeMap;
 
@@ -21,8 +19,7 @@ pub struct Context {
     pub answers: BTreeMap<SmolStr, AnswerValue>,
 }
 
-/// Repository-level facts derived from GitHub metadata or supplied by
-/// the local bootstrap script.
+/// Repository-level facts derived from GitHub metadata or supplied by the local bootstrap script.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectInfo {
     /// Repository name (e.g. `my-project`).
@@ -43,9 +40,7 @@ pub struct ProjectInfo {
 
 /// Variable answer values.
 ///
-/// Matches the variable types declared in the manifest; the boundary
-/// between manifest schema and engine type is kept narrow so the
-/// manifest can grow without ripple-changing templates.
+/// Matches the variable types declared in the manifest; the boundary between manifest schema and engine type is kept narrow so the manifest can grow without ripple-changing templates.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AnswerValue {
@@ -61,8 +56,7 @@ pub enum AnswerValue {
 
 impl Context {
     /// Convenience: synthesize a minimal context for snapshot tests.
-    /// Production callers build a richer context from CLI options /
-    /// GitHub Actions environment.
+    /// Production callers build a richer context from CLI options / GitHub Actions environment.
     #[must_use]
     pub fn for_test(name: &str, owner: &str) -> Self {
         Self {

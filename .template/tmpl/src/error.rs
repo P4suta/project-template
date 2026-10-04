@@ -1,5 +1,5 @@
-//! Diagnostics for the engine. `TmplError` is the single error type that
-//! crosses module boundaries; per-module wrappers feed into it.
+//! Diagnostics for the engine.
+//! `TmplError` is the single error type that crosses module boundaries; per-module wrappers feed into it.
 
 use std::io;
 use std::path::PathBuf;
@@ -10,8 +10,8 @@ use thiserror::Error;
 
 use crate::dag::ResolveError;
 
-/// Engine-level error type. Each variant carries enough context to be
-/// rendered by [`miette`] without further enrichment at the call site.
+/// Engine-level error type.
+/// Each variant carries enough context to be rendered by [`miette`] without further enrichment at the call site.
 #[derive(Debug, Error, Diagnostic)]
 pub enum TmplError {
     /// I/O failure with a labelled path.

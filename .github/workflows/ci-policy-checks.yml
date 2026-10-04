@@ -1,4 +1,4 @@
-name: Policy implementation assurance
+name: Production proof assurance
 on:
   workflow_call:
 permissions:
@@ -8,36 +8,8 @@ env:
   CARGO_TARGET_DIR: ${{ github.workspace }}/target
   MISE_AUTO_INSTALL: "false"
 jobs:
-  quality:
-    name: Native policy quality (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
-        with:
-          version: 2026.10.0
-          install: false
-      - run: mise install rust@1.99.0 just@1.58.0
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          workspaces: |
-            .ci/ci-policy -> ../../target
-            .template/tmpl -> ../../target
-          cmd-format: mise x rust@1.99.0 -- {0}
-          cache-bin: false
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - id: policy
-        uses: $/.github/actions/ci-policy
-      - run: mise x -- just check ci-policy-checks.yml::quality
   proofs:
-    name: Production policy proofs (${{ matrix.os }})
+    name: Production proofs (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
@@ -60,16 +32,16 @@ jobs:
         uses: $/.github/actions/ci-policy
       - run: mise x -- just check ci-policy-checks.yml::proofs
   verified:
-    name: Policy implementation verified
+    name: Production proofs verified
     if: always()
-    needs: [quality, proofs]
+    needs: [proofs]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - id: policy
         uses: $/.github/actions/ci-policy
-      - name: Require every native check and proof
+      - name: Require every native proof
         env:
           POLICY: ${{ steps.policy.outputs.executable }}
           RESULTS: ${{ toJSON(needs) }}
-        run: '"$POLICY" gate --needs "$RESULTS" --require-json ''["quality", "proofs"]'''
+        run: '"$POLICY" gate --needs "$RESULTS" --require-json ''["proofs"]'''

@@ -1,10 +1,7 @@
 //! Persistence of "what has been applied" — `.template/state.toml`.
 //!
-//! Each `tmpl apply` / `tmpl add` records the layers it wrote, the
-//! BLAKE3 content hash of each layer's rendered patch, and a Merkle
-//! root over the whole applied set. Re-application compares hashes
-//! before touching files: matching layers are skipped, drifted layers
-//! enter the merge path (Phase B), absent layers are added.
+//! Each `tmpl apply` / `tmpl add` records the layers it wrote, the BLAKE3 content hash of each layer's rendered patch, and a Merkle root over the whole applied set.
+//! Re-application compares hashes before touching files: matching layers are skipped, drifted layers enter the merge path (Phase B), absent layers are added.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -23,9 +20,8 @@ use crate::layer::{LayerName, Patch, RenderedFile, RenderedPath};
 
 mod hex;
 
-/// 32-byte BLAKE3 content hash. The `Default` value (all zeros) is the
-/// "empty repository" Merkle root — handy for `State::default()` on
-/// fresh checkouts before any layer has been applied.
+/// 32-byte BLAKE3 content hash.
+/// The `Default` value (all zeros) is the "empty repository" Merkle root — handy for `State::default()` on fresh checkouts before any layer has been applied.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ContentHash(pub [u8; 32]);
 
@@ -33,21 +29,18 @@ impl ContentHash {
     /// Lower-case hex representation, used in `state.toml`.
     ///
     /// Takes `self` by value because [`ContentHash`] is `Copy` —
-    /// borrowing a 32-byte array is the same cost as copying it on a
-    /// 64-bit register-rich machine, and the by-value form lets call
-    /// sites use the value without an explicit `&` borrow.
+    /// borrowing a 32-byte array is the same cost as copying it on a 64-bit register-rich machine, and the by-value form lets call sites use the value without an explicit `&` borrow.
     #[must_use]
     pub fn to_hex(self) -> String {
         let mut s = String::with_capacity(64);
         for b in self.0 {
-            // `Write` is brought into scope as `_` at file top so
-            // `write!` resolves without polluting public re-exports.
             write!(&mut s, "{b:02x}").expect("write to String never fails");
         }
         s
     }
 
-    /// Parse the hex form. Lengths and digits are validated.
+    /// Parse the hex form.
+    /// Lengths and digits are validated.
     ///
     /// # Errors
     ///
@@ -76,9 +69,8 @@ impl<'de> Deserialize<'de> for ContentHash {
     }
 }
 
-/// Hash parse failure. Size kept compact (both variants ≤ 2 bytes) so
-/// the enum can be `Copy` and so the variant-size lint stays satisfied
-/// without ad-hoc allow attributes.
+/// Hash parse failure.
+/// Size kept compact (both variants ≤ 2 bytes) so the enum can be `Copy` and so the variant-size lint stays satisfied without ad-hoc allow attributes.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum HashParseError {
     /// Hex string was not 64 characters long.
@@ -89,9 +81,8 @@ pub enum HashParseError {
     Digit(u8),
 }
 
-/// Hash a single patch — BLAKE3 over the canonical concatenation of
-/// `path\n<content-bytes>\n` for every rendered file, in path-sorted
-/// order. Sorting normalises permutations of the same logical patch.
+/// Hash a single patch — BLAKE3 over the canonical concatenation of `path\n<content-bytes>\n` for every rendered file, in path-sorted order.
+/// Sorting normalises permutations of the same logical patch.
 #[must_use]
 pub fn hash_patch(patch: &Patch) -> ContentHash {
     let mut files: Vec<&RenderedFile> = patch.files.iter().collect();
@@ -108,8 +99,8 @@ pub fn hash_patch(patch: &Patch) -> ContentHash {
     ContentHash(*hasher.finalize().as_bytes())
 }
 
-/// Merkle root over a set of (layer, hash) entries. The set is sorted
-/// by layer name so the root is permutation-invariant.
+/// Merkle root over a set of (layer, hash) entries.
+/// The set is sorted by layer name so the root is permutation-invariant.
 #[must_use]
 pub fn merkle_root(entries: &BTreeMap<LayerName, ContentHash>) -> ContentHash {
     let mut hasher = blake3::Hasher::new();
@@ -135,17 +126,16 @@ pub struct State {
     pub applied: BTreeMap<LayerName, AppliedEntry>,
 }
 
-/// Per-layer state entry. The `files` list captures per-file hashes so
-/// drift detection can compare each rendered file against its
-/// on-disk counterpart without re-running the render pipeline.
+/// Per-layer state entry.
+/// The `files` list captures per-file hashes so drift detection can compare each rendered file against its on-disk counterpart without re-running the render pipeline.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppliedEntry {
     /// BLAKE3 hash of the layer's rendered patch (whole-layer rollup).
     pub content_hash: ContentHash,
     /// RFC 3339 timestamp at which the layer was applied.
     pub applied_at: SmolStr,
-    /// Per-file hashes — one entry per rendered file. Sorted by path
-    /// so the on-disk representation stays diff-friendly.
+    /// Per-file hashes — one entry per rendered file.
+    /// Sorted by path so the on-disk representation stays diff-friendly.
     #[serde(default)]
     pub files: Vec<AppliedFileEntry>,
 }
@@ -153,20 +143,18 @@ pub struct AppliedEntry {
 /// One rendered file recorded against its layer in the applied state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppliedFileEntry {
-    /// Destination path the file was written to (relative to repo
-    /// root).
+    /// Destination path the file was written to (relative to repo root).
     pub path: RenderedPath,
-    /// BLAKE3 hash of the rendered content. Drift detection compares
-    /// this against `BLAKE3(<current on-disk content>)`.
+    /// BLAKE3 hash of the rendered content.
+    /// Drift detection compares this against `BLAKE3(<current on-disk content>)`.
     pub content_hash: ContentHash,
     /// Whether the file was rendered with the executable bit.
     #[serde(default)]
     pub executable: bool,
 }
 
-/// Hash a single file's content with BLAKE3. Helper used by both
-/// `applied_file_entries` (when recording state) and
-/// `detect_drift` (when comparing on-disk content against state).
+/// Hash a single file's content with BLAKE3.
+/// Helper used by both `applied_file_entries` (when recording state) and `detect_drift` (when comparing on-disk content against state).
 #[must_use]
 pub fn hash_content(content: &str) -> ContentHash {
     let mut hasher = blake3::Hasher::new();
@@ -174,7 +162,8 @@ pub fn hash_content(content: &str) -> ContentHash {
     ContentHash(*hasher.finalize().as_bytes())
 }
 
-/// Build the per-file applied entries for a rendered patch. Pure;
+/// Build the per-file applied entries for a rendered patch.
+/// Pure;
 /// mirrors the file contents into hash form without touching disk.
 #[must_use]
 pub fn applied_file_entries(patch: &Patch) -> Vec<AppliedFileEntry> {
@@ -191,12 +180,10 @@ pub fn applied_file_entries(patch: &Patch) -> Vec<AppliedFileEntry> {
     out
 }
 
-/// Flatten the applied state into the list of all recorded
-/// rendered file paths.
+/// Flatten the applied state into the list of all recorded rendered file paths.
 ///
-/// Order follows `BTreeMap` key sort across layers and preserves
-/// each layer's recorded `files` order verbatim. Used by `tmpl
-/// applied-files` to drive selective `git add` from CI.
+/// Order follows `BTreeMap` key sort across layers and preserves each layer's recorded `files` order verbatim.
+/// Used by `tmpl applied-files` to drive selective `git add` from CI.
 #[must_use]
 pub fn applied_paths(state: &State) -> Vec<&RenderedPath> {
     state
@@ -219,21 +206,19 @@ pub struct DriftReport {
 }
 
 impl DriftReport {
-    /// Convenience: `true` if every recorded file matches its on-disk
-    /// content (i.e. it is safe to overwrite or delete).
+    /// Convenience: `true` if every recorded file matches its on-disk content (i.e. it is safe to overwrite or delete).
     #[must_use]
-    pub fn is_clean(&self) -> bool {
+    pub const fn is_clean(&self) -> bool {
         self.modified.is_empty() && self.missing.is_empty()
     }
 }
 
-/// Compare the recorded state of a single layer's files against the
-/// current contents of `dest`. Pure aside from filesystem reads.
+/// Compare the recorded state of a single layer's files against the current contents of `dest`.
+/// Pure aside from filesystem reads.
 ///
 /// # Errors
 ///
-/// [`TmplError::Io`] when a recorded file exists on disk but cannot be
-/// read.
+/// [`TmplError::Io`] when a recorded file exists on disk but cannot be read.
 pub fn detect_drift(dest: &Path, applied: &AppliedEntry) -> Result<DriftReport, TmplError> {
     let mut report = DriftReport::default();
     for f in &applied.files {
@@ -256,14 +241,11 @@ pub fn detect_drift(dest: &Path, applied: &AppliedEntry) -> Result<DriftReport, 
 }
 
 impl State {
-    /// Read `state.toml` from disk; absence is treated as the empty
-    /// state, not as an error (a fresh repository has no state).
+    /// Read `state.toml` from disk; absence is treated as the empty state, not as an error (a fresh repository has no state).
     ///
     /// # Errors
     ///
-    /// Returns [`TmplError::State`] if the file exists but cannot be
-    /// parsed, [`TmplError::Io`] for filesystem-level failures other
-    /// than `NotFound`.
+    /// Returns [`TmplError::State`] if the file exists but cannot be parsed, [`TmplError::Io`] for filesystem-level failures other than `NotFound`.
     pub fn load(path: &Path) -> Result<Self, TmplError> {
         match fs::read_to_string(path) {
             Ok(text) => toml_de::from_str::<Self>(&text).map_err(|e| TmplError::State {
@@ -278,14 +260,12 @@ impl State {
         }
     }
 
-    /// Write `state.toml` atomically (write to `<path>.tmp`, then
-    /// rename).
+    /// Write `state.toml` atomically (write to `<path>.tmp`, then rename).
     ///
     /// # Errors
     ///
     /// [`TmplError::Io`] for any underlying I/O failure;
-    /// [`TmplError::State`] if `toml_edit` cannot serialise the
-    /// in-memory value (essentially never for the typed model).
+    /// [`TmplError::State`] if `toml_edit` cannot serialise the in-memory value (essentially never for the typed model).
     pub fn save(&self, path: &Path) -> Result<(), TmplError> {
         let text = toml_ser::to_string_pretty(self).map_err(|e| TmplError::State {
             path: path.to_owned(),
@@ -303,10 +283,6 @@ impl State {
         Ok(())
     }
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -451,11 +427,6 @@ mod tests {
 
     #[test]
     fn save_returns_state_error_on_unencodable_input() {
-        // Constructing a State that toml_edit::ser cannot serialise
-        // requires an invalid TOML key shape — `applied_at` is a free-
-        // form SmolStr so it's hard to invalidate. Exercise the happy
-        // path here and rely on the `state_save_load_roundtrip` test
-        // for serialise + deserialise correctness.
         let dir = tempfile::tempdir().expect("tempdir");
         let p = dir.path().join("state.toml");
         let state = State::default();
@@ -471,8 +442,6 @@ mod tests {
         let err = State::load(&p).expect_err("must fail");
         assert!(matches!(err, TmplError::State { .. }));
     }
-
-    // ---- Phase C extensions ------------------------------------------------
 
     #[test]
     fn hash_content_is_deterministic_and_distinguishes() {
@@ -532,11 +501,8 @@ mod tests {
     #[test]
     fn detect_drift_classifies_matched_modified_missing() {
         let dir = tempfile::tempdir().expect("tempdir");
-        // Two files were rendered before; on disk we leave one
-        // unchanged, edit one, and remove one.
         fs::write(dir.path().join("clean.txt"), "ok\n").expect("write");
         fs::write(dir.path().join("edited.txt"), "user-edit\n").expect("write");
-        // gone.txt is intentionally absent.
 
         let entry = AppliedEntry {
             content_hash: ContentHash::default(),
@@ -571,10 +537,6 @@ mod tests {
 
     #[test]
     fn save_returns_io_error_when_parent_missing() {
-        // `State::save` writes to `path.with_extension("toml.tmp")`
-        // under the same parent. If the parent directory does not
-        // exist, `fs::write` returns NotFound — surfaced as
-        // `TmplError::Io`.
         let dir = tempfile::tempdir().expect("tempdir");
         let bogus = dir.path().join("nope/state.toml");
         let err = State::default()
@@ -585,12 +547,6 @@ mod tests {
 
     #[test]
     fn applied_paths_returns_all_recorded_files_in_layer_order() {
-        // `applied_paths` flat-maps per-file entries across the
-        // BTreeMap of applied layers. Order must follow BTreeMap key
-        // sort across layers, then preserve each layer's recorded
-        // file order verbatim (no re-sorting within a layer — that
-        // invariant is established earlier by `applied_file_entries`
-        // when state is written).
         let mut applied = BTreeMap::new();
         applied.insert(
             name("typos"),

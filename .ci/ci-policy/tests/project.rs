@@ -126,6 +126,43 @@ fn fixed_runner_settings_do_not_invalidate_effective_environment() {
 }
 
 #[test]
+fn large_working_trees_do_not_expand_the_git_command_line() {
+    let (repository, cache) = fixture();
+    let directory = repository.path().join("src/many");
+    fs::create_dir_all(&directory).unwrap();
+    for index in 0..4096 {
+        fs::write(
+            directory.join(format!("{index:04}-{}.rs", "x".repeat(80))),
+            "pub struct Input;\n",
+        )
+        .unwrap();
+    }
+    accepted(&invoke(&repository, &cache, &[]));
+}
+
+#[cfg(unix)]
+#[test]
+fn working_paths_keep_newlines_and_leading_options_literal() {
+    let (repository, cache) = fixture();
+    let path = repository.path().join("-literal\npath.rs");
+    fs::write(&path, "pub struct Input;\n").unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
+    let mut value = contract();
+    value["checks"][0]["command"] = json!(["git", "ls-tree", "-r", "HEAD"]);
+    value["checks"][0]["inputs"] = json!(["."]);
+    repository.write(
+        ".ci/verification.json",
+        &serde_json::to_vec(&value).unwrap(),
+    );
+    let output = invoke(&repository, &cache, &[]);
+    accepted(&output);
+    let listing = String::from_utf8(output.stdout).unwrap();
+    assert!(listing.contains("100755 blob "));
+    assert!(listing.contains("\"-literal\\npath.rs\""));
+}
+
+#[test]
 fn a_failed_check_never_creates_success_evidence() {
     let (repository, cache) = fixture();
     let mut value = contract();

@@ -17,7 +17,7 @@ pub(super) fn decode(bytes: &[u8]) -> Result<[u8; 32], Error> {
     Ok(out)
 }
 
-fn nibble(byte: u8) -> Option<u8> {
+const fn nibble(byte: u8) -> Option<u8> {
     match byte {
         b'0'..=b'9' => Some(byte - b'0'),
         b'a'..=b'f' => Some(byte - b'a' + 10),

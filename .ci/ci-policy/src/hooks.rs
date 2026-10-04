@@ -11,6 +11,8 @@ use sha2::{Digest, Sha256};
 
 use crate::{REVISION, local::PushUpdate, same_revision};
 
+mod source;
+
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Installation {
@@ -312,7 +314,7 @@ pub fn push(root: &Path, expected: &str, remote: &str, url: &str, input: &str) -
     for update in updates {
         crate::project::verify_revision(&root, update.local_revision(), |candidate| {
             repository_hook(
-                candidate,
+                source::hook_root(root.as_path(), candidate),
                 "pre-push",
                 &[remote, url],
                 Some(input.as_bytes()),

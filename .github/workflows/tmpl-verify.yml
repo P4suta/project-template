@@ -20,7 +20,7 @@ jobs:
   policy-code:
     uses: $/.github/workflows/ci-policy-checks.yml
   engine:
-    name: Native engine assurance (${{ matrix.os }})
+    name: Native implementation assurance (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     strategy:
@@ -43,8 +43,8 @@ jobs:
       - name: Register verified Cargo extensions
         shell: bash
         run: |
-          mise link cargo:cargo-nextest@0.9.146 "$HOME/.cargo"
-          mise link cargo:cargo-deny@0.20.2 "$HOME/.cargo"
+          mise link cargo:cargo-nextest@0.9.146 "$(dirname "$(dirname "$(command -v cargo-nextest)")")"
+          mise link cargo:cargo-deny@0.20.2 "$(dirname "$(dirname "$(command -v cargo-deny)")")"
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: |
@@ -76,7 +76,7 @@ jobs:
           fallback: none
       - name: Register the verified coverage extension
         shell: bash
-        run: mise link cargo:cargo-llvm-cov@0.9.1 "$HOME/.cargo"
+        run: mise link cargo:cargo-llvm-cov@0.9.1 "$(dirname "$(dirname "$(command -v cargo-llvm-cov)")")"
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: |

@@ -1,30 +1,18 @@
 //! Layer DAG resolution.
 //!
-//! `resolve` ingests a layer selection plus the registry of all known
-//! layer metadata and produces a [`ResolvePlan`] that the render phase
-//! can walk in deterministic topological order. Every failure mode
-//! (unknown layer, unsatisfied capability, duplicate provider, layer-
-//! level conflict, dependency cycle) is reported as a structured
-//! [`ResolveError`] before any side effect is taken.
+//! `resolve` ingests a layer selection plus the registry of all known layer metadata and produces a [`ResolvePlan`] that the render phase can walk in deterministic topological order.
+//! Every failure mode (unknown layer, unsatisfied capability, duplicate provider, layer- level conflict, dependency cycle) is reported as a structured [`ResolveError`] before any side effect is taken.
 //!
 //! ## Algorithms
 //!
-//! * **Capability orphan rule** — a single pass over the selection
-//!   builds the `Capability → LayerName` provider map. A second
-//!   provider for the same capability is rejected immediately. This is
-//!   the layer-DAG analogue of Rust's trait-coherence orphan rule and
-//!   is what gives the engine its "swap one implementation of a
-//!   capability for another at the project boundary" property.
-//! * **Cycle detection** — `petgraph::algo::tarjan_scc` enumerates the
-//!   strongly connected components of the requires-graph; any SCC of
-//!   size > 1 (or a node with a self-loop) indicates a cycle and the
-//!   participants are returned for diagnostics.
+//! * **Capability orphan rule** — a single pass over the selection builds the `Capability → LayerName` provider map.
+//!   A second provider for the same capability is rejected immediately.
+//!   This is the layer-DAG analogue of Rust's trait-coherence orphan rule and is what gives the engine its "swap one implementation of a capability for another at the project boundary" property.
+//! * **Cycle detection** — `petgraph::algo::tarjan_scc` enumerates the strongly connected components of the requires-graph; any SCC of size > 1 (or a node with a self-loop) indicates a cycle and the participants are returned for diagnostics.
 //! * **Topological sort** — Kahn's algorithm on the requires-graph,
-//!   tie-broken by layer-name lexical order so the output is
-//!   reproducible across runs.
+//!   tie-broken by layer-name lexical order so the output is reproducible across runs.
 //!
-//! Time complexity: O(V + E) for both Tarjan's and Kahn's, plus an
-//! O(N) preprocess for the orphan rule and conflict scan.
+//! Time complexity: O(V + E) for both Tarjan's and Kahn's, plus an O(N) preprocess for the orphan rule and conflict scan.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::hash::BuildHasher;
@@ -60,8 +48,7 @@ pub enum ResolveError {
         capability: Capability,
     },
 
-    /// Two or more selected layers provide the same capability — a
-    /// violation of the orphan rule.
+    /// Two or more selected layers provide the same capability — a violation of the orphan rule.
     #[error("capability {capability} is provided by multiple selected layers: {providers:?}")]
     DuplicateProvider {
         /// The disputed capability.
@@ -82,45 +69,37 @@ pub enum ResolveError {
     /// The requires-graph contains a cycle.
     #[error("dependency cycle detected among layers: {participants:?}")]
     Cycle {
-        /// Layer names participating in (one of) the strongly connected
-        /// components with size > 1.
+        /// Layer names participating in (one of) the strongly connected components with size > 1.
         participants: Vec<LayerName>,
     },
 }
 
-/// Conflict report — currently a thin wrapper used by `tmpl verify` so
-/// the CLI surface can grow without breaking the resolve contract.
+/// Conflict report — currently a thin wrapper used by `tmpl verify` so the CLI surface can grow without breaking the resolve contract.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConflictReport {
     /// All resolution errors discovered for the registry.
     pub errors: Vec<ResolveError>,
 }
 
-/// Resolve a layer selection against a registry. Pure; no I/O.
+/// Resolve a layer selection against a registry.
+/// Pure; no I/O.
 ///
-/// Generic over the registry's hash builder so callers using a custom
-/// hasher (e.g. `ahash`, deterministic test hashers) can pass their
-/// map directly without rebuilding it.
+/// Generic over the registry's hash builder so callers using a custom hasher (e.g. `ahash`, deterministic test hashers) can pass their map directly without rebuilding it.
 ///
 /// # Errors
 ///
-/// Returns [`ResolveError`] for any of the failure modes documented on
-/// the variant. The first error encountered is returned — callers
-/// fix-and-retry rather than getting back a batched diagnosis. Use
-/// [`verify_registry`] for whole-registry health checks.
+/// Returns [`ResolveError`] for any of the failure modes documented on the variant.
+/// The first error encountered is returned — callers fix-and-retry rather than getting back a batched diagnosis.
+/// Use [`verify_registry`] for whole-registry health checks.
 ///
 /// # Panics
 ///
-/// Will panic if the internal capability-satisfaction invariant is
-/// somehow violated between the satisfaction check and the graph build
-/// — this would indicate a logic bug in this module, not a malformed
-/// input. The path is unreachable for any caller observable to the
-/// public API.
+/// Will panic if the internal capability-satisfaction invariant is somehow violated between the satisfaction check and the graph build — this would indicate a logic bug in this module, not a malformed input.
+/// The path is unreachable for any caller observable to the public API.
 pub fn resolve<S: BuildHasher>(
     selection: &[LayerName],
     registry: &HashMap<LayerName, LayerMeta, S>,
 ) -> Result<ResolvePlan, ResolveError> {
-    // ---- 1. Validate selection membership.
     let selected: BTreeSet<LayerName> = selection.iter().cloned().collect();
     for name in &selected {
         if !registry.contains_key(name) {
@@ -128,7 +107,6 @@ pub fn resolve<S: BuildHasher>(
         }
     }
 
-    // ---- 2. Layer-level conflict scan.
     for name in &selected {
         let meta = &registry[name];
         for other in &meta.conflicts_with {
@@ -141,7 +119,6 @@ pub fn resolve<S: BuildHasher>(
         }
     }
 
-    // ---- 3. Capability orphan rule + provider map.
     let mut provider_of: BTreeMap<Capability, LayerName> = BTreeMap::new();
     for name in &selected {
         let meta = &registry[name];
@@ -156,7 +133,6 @@ pub fn resolve<S: BuildHasher>(
         }
     }
 
-    // ---- 4. Required-capability satisfaction.
     for name in &selected {
         let meta = &registry[name];
         for cap in &meta.requires {
@@ -169,10 +145,6 @@ pub fn resolve<S: BuildHasher>(
         }
     }
 
-    // ---- 5. Build the requires-graph.
-    //
-    // Nodes are selected layers; we add an edge from `provider(cap) → consumer`
-    // for each `(consumer, cap)` pair where `consumer.requires` lists `cap`.
     let mut graph: DiGraph<LayerName, ()> = DiGraph::new();
     let mut idx_of: HashMap<LayerName, NodeIndex> = HashMap::new();
     for name in &selected {
@@ -182,18 +154,15 @@ pub fn resolve<S: BuildHasher>(
     for name in &selected {
         let meta = &registry[name];
         for cap in &meta.requires {
-            // Safe: provider_of populated above; satisfaction checked.
             let provider = provider_of
                 .get(cap)
                 .expect("capability satisfaction was validated above");
             let from = idx_of[provider];
             let to = idx_of[name];
-            // Self-loop is a cycle.
             graph.add_edge(from, to, ());
         }
     }
 
-    // ---- 6. Cycle detection (Tarjan SCC).
     let sccs = tarjan_scc(&graph);
     for component in &sccs {
         let is_cycle = component.len() > 1
@@ -210,16 +179,13 @@ pub fn resolve<S: BuildHasher>(
         }
     }
 
-    // ---- 7. Topological sort (Kahn, tie-broken by name).
     let order = kahn_topological_sort(&graph)?;
 
     Ok(ResolvePlan { order, provider_of })
 }
 
-/// Kahn's algorithm — pop in-degree-0 nodes deterministically (sorted
-/// by layer name). Cycle detection has already happened by the time we
-/// land here, but we still surface the unreachable-cycle case as a
-/// fall-back guard.
+/// Kahn's algorithm — pop in-degree-0 nodes deterministically (sorted by layer name).
+/// Cycle detection has already happened by the time we land here, but we still surface the unreachable-cycle case as a fall-back guard.
 fn kahn_topological_sort(graph: &DiGraph<LayerName, ()>) -> Result<Vec<LayerName>, ResolveError> {
     let mut in_degree: HashMap<NodeIndex, usize> = graph
         .node_indices()
@@ -248,8 +214,6 @@ fn kahn_topological_sort(graph: &DiGraph<LayerName, ()>) -> Result<Vec<LayerName
     if order.len() == graph.node_count() {
         Ok(order)
     } else {
-        // Should be unreachable — `tarjan_scc` runs before us — but keep
-        // the diagnostic accurate if invariants ever drift.
         let stuck: Vec<LayerName> = graph
             .node_indices()
             .filter(|i| in_degree[i] > 0)
@@ -263,20 +227,14 @@ fn kahn_topological_sort(graph: &DiGraph<LayerName, ()>) -> Result<Vec<LayerName
 
 /// Whole-registry sanity check used by `tmpl verify`.
 ///
-/// Iterating every non-empty subset is too expensive; instead we run
-/// [`resolve`] against the *full* registry (which is the maximal
-/// selection) plus each declared `conflicts-with` pair to flush out
-/// symmetric / asymmetric declarations. The full report is emitted at
-/// once for human review.
+/// Iterating every non-empty subset is too expensive; instead we run [`resolve`] against the *full* registry (which is the maximal selection) plus each declared `conflicts-with` pair to flush out symmetric / asymmetric declarations.
+/// The full report is emitted at once for human review.
 #[must_use]
 pub fn verify_registry<S: BuildHasher>(
     registry: &HashMap<LayerName, LayerMeta, S>,
 ) -> ConflictReport {
     let mut errors = Vec::new();
 
-    // Conflict declarations should be symmetric. If A conflicts with B,
-    // B must also conflict with A — otherwise the resolver could let
-    // the pair coexist in selections that mention only the silent half.
     for (name, meta) in registry {
         for other in &meta.conflicts_with {
             let Some(other_meta) = registry.get(other) else {
@@ -294,10 +252,6 @@ pub fn verify_registry<S: BuildHasher>(
 
     ConflictReport { errors }
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -355,8 +309,6 @@ mod tests {
 
     #[test]
     fn resolve_breaks_ties_lexicographically() {
-        // Both `aaa` and `bbb` have in-degree 0, no edges between them;
-        // Kahn pops them in lex order.
         let reg = registry(vec![meta("aaa", &[], &[], &[]), meta("bbb", &[], &[], &[])]);
         let sel = vec![name("bbb"), name("aaa")];
         let plan = resolve(&sel, &reg).unwrap();
@@ -445,9 +397,6 @@ mod tests {
 
     #[test]
     fn verify_registry_flags_unknown_conflict_target() {
-        // Layer `a` declares a conflict against a layer that the
-        // registry doesn't know — the dangling reference must surface
-        // as an UnknownLayer error.
         let reg = registry(vec![meta("a", &[], &[], &["ghost"])]);
         let report = verify_registry(&reg);
         assert!(
@@ -492,17 +441,12 @@ mod tests {
         assert_eq!(r, cloned);
     }
 
-    // --- Property tests --------------------------------------------------
-
     use proptest::prelude::*;
 
     fn small_layer_strategy() -> impl Strategy<Value = LayerMeta> {
-        // A small, deterministic universe so cycles can occur frequently.
         let names: Vec<LayerName> = ["a", "b", "c", "d"].iter().map(|s| name(s)).collect();
         let caps: Vec<Capability> = (0..4).map(|i| cap(&format!("c{i}"))).collect();
 
-        // `prop::sample::select` takes ownership; clone once for the
-        // first consumer and move into the second.
         let caps_for_requires = caps.clone();
         (
             prop::sample::select(names),
@@ -522,13 +466,10 @@ mod tests {
     }
 
     proptest! {
-        // Property: `resolve` either returns Ok with `|order| == |selection|`,
-        // or returns one of the structured errors. It must never panic.
         #[test]
         fn property_resolve_total(
             metas in prop::collection::vec(small_layer_strategy(), 1..6)
         ) {
-            // Deduplicate by name (last write wins) so the registry is well-formed.
             let mut reg: HashMap<LayerName, LayerMeta> = HashMap::new();
             for m in metas {
                 reg.insert(m.name.clone(), m);
@@ -539,8 +480,6 @@ mod tests {
             }
         }
 
-        // Property: applying `resolve` is idempotent under repetition
-        // — the same input must yield the same plan, every time.
         #[test]
         fn property_resolve_deterministic(
             metas in prop::collection::vec(small_layer_strategy(), 1..6)

@@ -380,16 +380,6 @@
   "ci": [
     {
       "workflow": "ci-policy-checks.yml",
-      "job": "quality",
-      "checks": [
-        "policy-fmt",
-        "fixture-fmt",
-        "policy-clippy",
-        "policy-tests"
-      ]
-    },
-    {
-      "workflow": "ci-policy-checks.yml",
       "job": "proofs",
       "checks": [
         "policy-proofs",
@@ -401,6 +391,10 @@
       "workflow": "tmpl-verify.yml",
       "job": "engine",
       "checks": [
+        "policy-fmt",
+        "fixture-fmt",
+        "policy-clippy",
+        "policy-tests",
         "engine-fmt",
         "spelling",
         "engine-clippy",

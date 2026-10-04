@@ -13,7 +13,9 @@ use crate::{Conclusion, gate};
 mod source;
 pub use source::validate_source;
 
-pub const HARNESSES: [&str; 18] = [
+pub const HARNESSES: [&str; 20] = [
+    "hooks::source::proofs::repository_hooks_always_use_the_owners_root",
+    "project::index::proofs::index_input_preserves_paths_and_rejects_embedded_delimiters",
     "proof::proofs::library_namespaces_cannot_admit_project_functions",
     "proof::source::proofs::macro_recognition_requires_bang_and_delimited_arguments",
     "project::protocol::proofs::reuse_requires_applicable_exact_success",

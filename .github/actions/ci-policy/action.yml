@@ -13,7 +13,9 @@ runs:
         install: false
     - name: Prepare the policy compiler
       shell: bash
-      run: mise install rust@1.99.0
+      run: |
+        mise install rust@1.99.0
+        mise x rust@1.99.0 -- rustup component add rustfmt clippy --toolchain 1.99.0
     - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       with:
         workspaces: ${{ github.action_path }}/../../../.ci/ci-policy -> ${{ github.workspace }}/target

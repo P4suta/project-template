@@ -1355,23 +1355,33 @@ fn snapshot(
         }
         git(&candidate, &["add", "--all", "--", "."], true)?;
         for executable in [false, true] {
-            let mut arguments = vec![
-                "update-index",
-                if executable {
-                    "--chmod=+x"
-                } else {
-                    "--chmod=-x"
-                },
-                "--",
-            ];
-            arguments.extend(
-                files
-                    .iter()
-                    .filter(|(_, input)| input.executable == executable)
-                    .map(|(path, _)| path.as_str()),
-            );
-            if arguments.len() > 3 {
-                git(&candidate, &arguments, true)?;
+            let mut paths = Vec::new();
+            for (path, _) in files
+                .iter()
+                .filter(|(_, input)| input.executable == executable)
+            {
+                ensure!(
+                    super::index::append_path(path.as_bytes(), &mut paths),
+                    "Git index path contains an invalid delimiter"
+                );
+            }
+            if !paths.is_empty() {
+                crate::local::execute(
+                    private_command("git", &candidate).args([
+                        "-c",
+                        "core.fsmonitor=false",
+                        "update-index",
+                        if executable {
+                            "--chmod=+x"
+                        } else {
+                            "--chmod=-x"
+                        },
+                        "-z",
+                        "--stdin",
+                    ]),
+                    Some(&paths),
+                )
+                .context("cannot establish project source index modes")?;
             }
         }
     }
