@@ -16,7 +16,8 @@ use sha2::{Digest, Sha256};
 use yaml_rust2::{Yaml, YamlLoader};
 
 use super::protocol::{
-    Budget, Cache, Completion, Coverage, Decision, Phase, Progress, budget_valid, decide, progress,
+    Budget, Cache, Completion, Coverage, Decision, Phase, Progress, budget_valid, compiler_jobs,
+    decide, progress,
 };
 
 mod discovery;
@@ -129,6 +130,12 @@ fn private_command(program: &str, root: &Path) -> Command {
     command.current_dir(root);
     for name in GIT_LOCATION {
         command.env_remove(name);
+    }
+    if program == "git" {
+        command.env("GIT_CONFIG_NOSYSTEM", "1").env(
+            "GIT_CONFIG_GLOBAL",
+            if cfg!(windows) { "NUL" } else { "/dev/null" },
+        );
     }
     command
 }
@@ -305,7 +312,7 @@ fn declared_source(path: &str) -> bool {
     )
 }
 
-fn validate(contract: &Contract, files: &Files, declared: bool) -> Result<()> {
+fn validate(contract: &Contract, files: &Files, declared: bool) -> Result<bool> {
     ensure!(
         contract.version == 1
             && !contract.checks.is_empty()
@@ -391,8 +398,9 @@ fn validate(contract: &Contract, files: &Files, declared: bool) -> Result<()> {
         );
     }
     if !declared {
-        return Ok(());
+        return Ok(false);
     }
+    let mut requires_just = false;
     let mut covered = BTreeSet::new();
     let mut bindings = BTreeSet::new();
     for ci in &contract.ci {
@@ -419,15 +427,27 @@ fn validate(contract: &Contract, files: &Files, declared: bool) -> Result<()> {
         let job = &documents[0]["jobs"][ci.job.as_str()];
         ensure!(job.as_hash().is_some(), "bound CI job is missing");
         let entry = format!("mise x -- just check {}::{}", ci.workflow, ci.job);
+        let direct = format!(
+            "ci-policy project-check --suite {}::{}",
+            ci.workflow, ci.job
+        );
+        let activated = format!("mise x -- {direct}");
         ensure!(
             unsuppressed(job),
             "authoritative CI job cannot suppress its outcome"
         );
+        let mut bound = false;
+        for step in job["steps"].as_vec().context("CI job has no steps")? {
+            if unsuppressed(step)
+                && let Some(run) = step["run"].as_str().map(str::trim)
+                && (run == entry || run == direct || run == activated)
+            {
+                bound = true;
+                requires_just |= run == entry;
+            }
+        }
         ensure!(
-            job["steps"]
-                .as_vec()
-                .is_some_and(|steps| steps.iter().any(|step| unsuppressed(step)
-                    && step["run"].as_str().is_some_and(|run| run.trim() == entry))),
+            bound,
             "CI job does not invoke the authoritative project gate: {}::{}",
             ci.workflow,
             ci.job
@@ -507,7 +527,7 @@ fn validate(contract: &Contract, files: &Files, declared: bool) -> Result<()> {
         coverage.complete(),
         "CI does not cover every declared project check and platform"
     );
-    Ok(())
+    Ok(requires_just)
 }
 
 fn unsuppressed(value: &Yaml) -> bool {
@@ -635,6 +655,16 @@ fn capability_valid(capability: &Capability, workflow: &str, document: &Yaml, jo
     }
 }
 
+const PUBLIC_POLICY_ACTION: &[u8] = b"P4suta/project-template/.github/actions/ci-policy@";
+const SELF_POLICY_ACTION: &[u8] = b"$/.github/actions/ci-policy";
+
+fn policy_action(reference: &[u8]) -> bool {
+    reference == SELF_POLICY_ACTION
+        || reference.len() == PUBLIC_POLICY_ACTION.len() + 40
+            && reference.starts_with(PUBLIC_POLICY_ACTION)
+            && crate::exact_hash(&reference[PUBLIC_POLICY_ACTION.len()..], 40)
+}
+
 fn aggregate_valid(job: &Yaml) -> bool {
     let needs = if let Some(value) = job["needs"].as_str() {
         vec![value]
@@ -657,7 +687,9 @@ fn aggregate_valid(job: &Yaml) -> bool {
         let builds_gate = steps.iter().any(|step| {
             step["id"].as_str() == Some("policy")
                 && unsuppressed(step)
-                && step["uses"].as_str() == Some("$/.github/actions/ci-policy")
+                && step["uses"]
+                    .as_str()
+                    .is_some_and(|reference| policy_action(reference.as_bytes()))
         });
         builds_gate
             && steps.iter().any(|step| {
@@ -734,7 +766,7 @@ fn hash_parts(parts: impl IntoIterator<Item = impl AsRef<[u8]>>) -> String {
 }
 
 fn environment(check: &Check) -> BTreeMap<OsString, OsString> {
-    std::env::vars_os()
+    let mut environment: BTreeMap<OsString, OsString> = std::env::vars_os()
         .filter(|(key, _)| {
             let name = key.to_string_lossy();
             let upper = name.to_ascii_uppercase();
@@ -780,7 +812,21 @@ fn environment(check: &Check) -> BTreeMap<OsString, OsString> {
                     .iter()
                     .any(|declared| declared == name.as_ref()))
         })
-        .collect()
+        .collect();
+    if check.command.first().is_some_and(|value| value == "cargo")
+        && check.command.get(1).is_some_and(|value| value == "deny")
+    {
+        environment.insert("GIT_CONFIG_COUNT".into(), "1".into());
+        environment.insert(
+            "GIT_CONFIG_KEY_0".into(),
+            "url.https://github.com/RustSec/advisory-db.insteadOf".into(),
+        );
+        environment.insert(
+            "GIT_CONFIG_VALUE_0".into(),
+            "https://github.com/RustSec/advisory-db".into(),
+        );
+    }
+    environment
 }
 
 fn tool_identity(root: &Path, check: &Check) -> Result<(Vec<u8>, std::path::PathBuf)> {
@@ -1002,6 +1048,11 @@ fn identity(check: &Check, files: &Files, tools: &[u8]) -> Result<String> {
 }
 
 fn execute(root: &Path, check: &Check, program: &Path, target: &Path) -> Result<()> {
+    let jobs = match std::env::var("CARGO_BUILD_JOBS") {
+        Ok(value) => value.parse::<std::num::NonZeroU32>()?,
+        Err(std::env::VarError::NotPresent) => std::num::NonZeroU32::new(2).unwrap(),
+        Err(error) => return Err(error.into()),
+    };
     let mut command = private_command("mise", root);
     command
         .env_clear()
@@ -1013,7 +1064,7 @@ fn execute(root: &Path, check: &Check, program: &Path, target: &Path) -> Result<
         .args(&check.command[1..])
         .env("MISE_TRUSTED_CONFIG_PATHS", root)
         .env("MISE_AUTO_INSTALL", "false")
-        .env("CARGO_BUILD_JOBS", "2")
+        .env("CARGO_BUILD_JOBS", compiler_jobs(jobs).to_string())
         .env("CARGO_TARGET_DIR", target)
         .stdin(Stdio::null());
     let mut wrapped = CommandWrap::from(command);
@@ -1106,8 +1157,7 @@ fn evaluate(
         Some(source) => serde_json::from_value(crate::json::parse(&source.bytes)?)?,
         None => discovery::discover(root, files)?,
     };
-    validate(&contract, files, declared)?;
-    if declared {
+    if validate(&contract, files, declared)? {
         entrypoint(root)?;
     }
     let selected = if suite == "local" {
@@ -1229,6 +1279,44 @@ fn evaluate(
         "project has no applicable completed local checks"
     );
     Ok(())
+}
+
+#[cfg(kani)]
+mod proofs {
+    use super::{PUBLIC_POLICY_ACTION, SELF_POLICY_ACTION, policy_action};
+
+    #[kani::proof]
+    #[kani::unwind(96)]
+    fn shared_aggregate_requires_the_policy_namespace_and_immutable_revision() {
+        let input: [u8; PUBLIC_POLICY_ACTION.len() + 41] = kani::any();
+        let length: u8 = kani::any();
+        kani::assume(usize::from(length) <= input.len());
+        let position: u8 = kani::any();
+        kani::assume(usize::from(position) < input.len());
+        let position = usize::from(position);
+        let reference = &input[..usize::from(length)];
+        let accepted = policy_action(reference);
+        if accepted && reference != SELF_POLICY_ACTION {
+            assert_eq!(reference.len(), PUBLIC_POLICY_ACTION.len() + 40);
+            if position < PUBLIC_POLICY_ACTION.len() {
+                assert_eq!(input[position], PUBLIC_POLICY_ACTION[position]);
+            } else if position < reference.len() {
+                let byte = input[position];
+                assert!(
+                    (b'0'..=b'9').contains(&byte)
+                        || (b'a'..=b'f').contains(&byte)
+                        || (b'A'..=b'F').contains(&byte)
+                );
+            }
+        }
+        assert!(policy_action(SELF_POLICY_ACTION));
+        assert!(!policy_action(
+            b"P4suta/project-template/.github/actions/ci-policy@main"
+        ));
+        kani::cover!(accepted && reference != SELF_POLICY_ACTION);
+        kani::cover!(reference == SELF_POLICY_ACTION);
+        kani::cover!(!accepted);
+    }
 }
 
 pub fn run(
@@ -1404,8 +1492,6 @@ fn snapshot(
         let mut command = private_command("git", &candidate);
         command
             .args([
-                "-c",
-                "commit.gpgsign=false",
                 "commit-tree",
                 std::str::from_utf8(&tree)?.trim(),
                 "-m",
@@ -1423,7 +1509,8 @@ fn snapshot(
         let output = command.output()?;
         ensure!(
             output.status.success(),
-            "verification snapshot could not be bound to HEAD"
+            "verification snapshot could not be bound to HEAD: {}",
+            String::from_utf8_lossy(&output.stderr)
         );
         git(
             &candidate,

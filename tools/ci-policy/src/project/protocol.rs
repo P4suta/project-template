@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+pub fn compiler_jobs(requested: std::num::NonZeroU32) -> std::num::NonZeroU32 {
+    requested.min(std::num::NonZeroU32::new(2).unwrap())
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(kani, derive(kani::Arbitrary))]
@@ -125,8 +129,19 @@ impl Coverage {
 mod proofs {
     use super::{
         Budget, Cache, Completion, Coverage, Decision, Phase, Progress, budget_limit, budget_valid,
-        decide, progress,
+        compiler_jobs, decide, progress,
     };
+
+    #[kani::proof]
+    fn automatic_compilation_preserves_lower_owner_limits() {
+        let requested: u32 = kani::any();
+        kani::assume(requested != 0);
+        let actual = compiler_jobs(std::num::NonZeroU32::new(requested).unwrap()).get();
+        assert!(actual != 0 && actual <= 2 && actual <= requested);
+        assert!(requested != 1 || actual == 1);
+        kani::cover!(actual == 1);
+        kani::cover!(actual == 2 && requested > 2);
+    }
 
     #[kani::proof]
     fn reuse_requires_applicable_exact_success() {

@@ -14,8 +14,15 @@ A new repository does not need a Lefthook, just, mise, or `.ci/verification.json
 Discover native compiler and test operations from supported manifests, include every supported ordinary CI command, and reject uncovered languages, conditional operations, actions, or environment requirements until their shared adapter is implemented.
 Common checks inspect the immutable index, and pushes always include every workflow and local action even when the pushed diff changes neither.
 Use mise for pinned native tools and maintained Rust commands for discovery, execution, and evidence.
+Automatic compilation caps parallel jobs at two and preserves a lower positive owner limit.
+The public RustSec advisory database uses its exact HTTPS transport while repository signing and private Git transports keep their native configuration.
+Keep the installable policy package under `tools/ci-policy`, where Cargo discovers it through an immutable Git installation.
+Exercise that installation against the actual package source, then verify a configuration-free repository and a rejected invalid candidate with the installed executable.
+Installation fixtures own their compiler outputs and must preserve the original test-runner binary; Cargo installation can consume its generated executable.
+Ephemeral verification repositories isolate system and global Git configuration instead of disabling signing through command-line flags; the owner's actual repository retains its signing and hook settings.
 Keep `.ci/verification.json` as an optional explicit contract for project-specific scopes, native targets, proofs, and other behavior the automatic adapter cannot infer.
-For an explicit contract, validate the actual just syntax tree and every CI job's binding before accepting its declared suites.
+Bind each explicit CI suite directly to the native policy command or a verified just frontend.
+Validate the actual just syntax tree only when a bound job uses it; a domain contract does not require a Justfile.
 Hosted security, protected approval, aggregate, initialization, and deliberately scheduled campaigns retain separate explicit capabilities.
 Unbound jobs, suppressed failures, incomplete native coverage, missing tools, and empty inventories fail the gate.
 
@@ -34,12 +41,15 @@ Record success atomically only after the command succeeds within its deadline, i
 Share dependency build outputs; keep proof models isolated for each exact verification run.
 
 CI invokes the same contract's bound suites on supported native runners.
+Other repositories use the immutable public policy Action for the same required aggregate, while the policy repository retains its same-repository Action identity.
 Cache dependencies without trusting cached workspace executables, save shared caches from main, and require every declared result in one stable aggregate gate.
 Retain hosted permissions and release protections; ordinary project verification cannot authorize publication.
 
 ## Assurance and trust
 
 Kani imports production decisions for phase selection, exact evidence reuse, cumulative budgets, complete coverage, deadline outcomes, and permitted Cargo operations.
+It checks that a shared aggregate accepts only the policy repository's own Action or its exact public namespace pinned to an immutable commit, for arbitrary reference bytes up to 91 bytes.
+It also proves that automatic compilation cannot exceed either the owner's positive job limit or two jobs.
 It also checks the required workflow scope and each discovered language's compiler and behavioral operation selection.
 Required proof inventories include reachable covers and a deliberately false claim that must fail with the expected assertion.
 Native integration tests exercise staged HEAD identity, pushed revisions, cache invalidation, missing contracts, CI bypass attempts, and descendant cleanup after success, failure, and timeout.

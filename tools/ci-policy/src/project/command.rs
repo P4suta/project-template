@@ -88,6 +88,7 @@ fn runner_operation(action: &[u8]) -> bool {
             | b"lint"
             | b"fmt-check"
             | b"prove"
+            | b"proofs"
             | b"prove-source"
             | b"audit"
     )
@@ -106,7 +107,10 @@ fn owned_runner(arguments: &[String]) -> bool {
             || pair[0] == "--manifest-path"
                 && (matches!(
                     pair[1].as_str(),
-                    ".ci/ci-policy/Cargo.toml" | ".template/tmpl/Cargo.toml" | "xtask/Cargo.toml"
+                    ".ci/ci-policy/Cargo.toml"
+                        | "tools/ci-policy/Cargo.toml"
+                        | ".template/tmpl/Cargo.toml"
+                        | "xtask/Cargo.toml"
                 ) || pair[1].ends_with("/xtask/Cargo.toml"))
     });
     owned && runner_operation(action.as_bytes())
@@ -158,6 +162,7 @@ mod proofs {
                     | b"lint"
                     | b"fmt-check"
                     | b"prove"
+                    | b"proofs"
                     | b"prove-source"
                     | b"audit"
             )
