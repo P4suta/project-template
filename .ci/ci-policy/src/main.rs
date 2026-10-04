@@ -40,6 +40,9 @@ enum Action {
     Check {
         root: PathBuf,
     },
+    SourceCheck {
+        root: PathBuf,
+    },
     Export {
         inventory: PathBuf,
         output: PathBuf,
@@ -222,6 +225,7 @@ impl Cli {
                         .value_parser(PathBufValueParser::new()),
                 ),
             )
+            .subcommand(Command::new("source-check").arg(root_argument()))
             .subcommand(
                 Command::new("pre-push")
                     .arg(Arg::new("remote").required(true))
@@ -326,6 +330,9 @@ impl Cli {
                 output: get_path("output")?,
             },
             "check" => Action::Check {
+                root: get_path("root")?,
+            },
+            "source-check" => Action::SourceCheck {
                 root: get_path("root")?,
             },
             "verify-index" => Action::VerifyIndex {
@@ -487,6 +494,7 @@ fn run() -> Result<()> {
         Action::Check { root } => {
             ci_policy::local::verify_workflows(&root)?;
         }
+        Action::SourceCheck { root } => ci_policy::local::verify_source(&root)?,
         Action::Export {
             inventory: path,
             output,

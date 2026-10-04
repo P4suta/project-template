@@ -348,5 +348,7 @@ mod tests {
     fn rendered_path_accepts_relative() {
         let p = RenderedPath::new("docs/adr/0001.md").expect("relative path is fine");
         assert_eq!(p.as_path().as_str(), "docs/adr/0001.md");
+        let p = RenderedPath::new("1:relative").expect("a drive prefix requires an ASCII letter");
+        assert_eq!(p.as_path().as_str(), "1:relative");
     }
 }

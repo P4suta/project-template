@@ -9,9 +9,13 @@ A successful check applies only to the exact source, configuration, selected too
 
 ## Decision
 
-Keep project verification in `.ci/verification.json` as explicit argument vectors, required native platforms, input scopes, phases, and bounded execution budgets.
-Use mise for pinned tools, a thin `just check` entry point, and maintained Rust commands for procedural checks.
-The shared Rust runner validates the actual just syntax tree and every CI job's binding before accepting the contract.
+Install the common verification baseline and automatic project discovery globally through each native dotfiles profile.
+A new repository does not need a Lefthook, just, mise, or `.ci/verification.json` file to receive the installed baseline.
+Discover native compiler and test operations from supported manifests, include every supported ordinary CI command, and reject uncovered languages, conditional operations, actions, or environment requirements until their shared adapter is implemented.
+Common checks inspect the immutable index, and pushes always include every workflow and local action even when the pushed diff changes neither.
+Use mise for pinned native tools and maintained Rust commands for discovery, execution, and evidence.
+Keep `.ci/verification.json` as an optional explicit contract for project-specific scopes, native targets, proofs, and other behavior the automatic adapter cannot infer.
+For an explicit contract, validate the actual just syntax tree and every CI job's binding before accepting its declared suites.
 Hosted security, protected approval, aggregate, initialization, and deliberately scheduled campaigns retain separate explicit capabilities.
 Unbound jobs, suppressed failures, incomplete native coverage, missing tools, and empty inventories fail the gate.
 
@@ -36,13 +40,17 @@ Retain hosted permissions and release protections; ordinary project verification
 ## Assurance and trust
 
 Kani imports production decisions for phase selection, exact evidence reuse, cumulative budgets, complete coverage, deadline outcomes, and permitted Cargo operations.
+It also checks the required workflow scope and each discovered language's compiler and behavioral operation selection.
 Required proof inventories include reachable covers and a deliberately false claim that must fail with the expected assertion.
 Native integration tests exercise staged HEAD identity, pushed revisions, cache invalidation, missing contracts, CI bypass attempts, and descendant cleanup after success, failure, and timeout.
+Configuration-free Rust fixtures exercise real Clippy, tests, new CI commands, unknown-command rejection, and the absence of repository setup artifacts.
+Native Windows preparation starts with an isolated mise installation, uses the same pinned Cargo binary installer as CI, and runs an actual pinned Cargo extension through the production project runner.
 Kani also checks hook-root selection by reference identity and NUL-delimited path encoding for arbitrary paths up to 32 bytes.
 Integration tests exercise large file inventories, literal filenames, and native executable modes.
 Engine proofs check every 64-byte hash input and portable path validation for arbitrary byte strings up to 32 bytes, with complete unwinding and independent component checks.
 Native tests exercise the public path constructor and deserialization boundary on Mac and Windows.
 The filesystem, Git, mise, parsers, cryptographic hash implementation, operating system process isolation, tool outputs, and each project's implementation remain external trust boundaries.
+The checked boundary alternative is the required native integration suite against real Git, mise, Cargo, external validators, and process isolation; a proof over the Rust decision core does not establish those external implementations.
 Checks must declare their relevant input and environment dependencies; a receipt does not prove undeclared external behavior or malicious subprocess isolation.
 The engine rejects lint `allow` attributes and unused `expect` attributes.
 Duplicate dependency exceptions name only the current upstream collisions in bitflags, hashbrown, syn, and unicode-width; new collisions still fail Clippy.

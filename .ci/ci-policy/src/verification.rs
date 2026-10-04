@@ -34,6 +34,10 @@ pub enum Context {
     Repository,
 }
 
+pub fn required_on_push(kind: FileKind) -> bool {
+    matches!(kind, FileKind::Workflow | FileKind::Action)
+}
+
 const ALL_CHECKS: [Check; 11] = [
     Check::Skills,
     Check::Spelling,
@@ -138,6 +142,19 @@ pub fn file_kind(path: &str, bytes: &[u8]) -> FileKind {
 #[cfg(kani)]
 mod proofs {
     use super::{Check, Context, FileKind, Plan};
+
+    #[kani::proof]
+    fn every_workflow_and_action_remains_required_on_push() {
+        let kind: FileKind = kani::any();
+        let required = super::required_on_push(kind);
+        assert_eq!(
+            required,
+            kind == FileKind::Workflow || kind == FileKind::Action
+        );
+        kani::cover!(kind == FileKind::Workflow && required);
+        kani::cover!(kind == FileKind::Action && required);
+        kani::cover!(!required);
+    }
 
     #[kani::proof]
     #[kani::unwind(12)]

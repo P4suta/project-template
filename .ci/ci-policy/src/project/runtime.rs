@@ -19,6 +19,8 @@ use super::protocol::{
     Budget, Cache, Completion, Coverage, Decision, Phase, Progress, budget_valid, decide, progress,
 };
 
+mod discovery;
+
 const CONTRACT: &str = ".ci/verification.json";
 const GIT_LOCATION: [&str; 6] = [
     "GIT_DIR",
@@ -303,9 +305,11 @@ fn declared_source(path: &str) -> bool {
     )
 }
 
-fn validate(contract: &Contract, files: &Files) -> Result<()> {
+fn validate(contract: &Contract, files: &Files, declared: bool) -> Result<()> {
     ensure!(
-        contract.version == 1 && !contract.checks.is_empty() && !contract.ci.is_empty(),
+        contract.version == 1
+            && !contract.checks.is_empty()
+            && (!declared || !contract.ci.is_empty()),
         "project verification contract is empty or unsupported"
     );
     let mut identities = BTreeSet::new();
@@ -385,6 +389,9 @@ fn validate(contract: &Contract, files: &Files) -> Result<()> {
                 .any(|check| check.inputs.iter().any(|input| matches(path, input))),
             "project source has no verification scope: {path}"
         );
+    }
+    if !declared {
+        return Ok(());
     }
     let mut covered = BTreeSet::new();
     let mut bindings = BTreeSet::new();
@@ -1094,14 +1101,15 @@ fn evaluate(
     cache: &Path,
     target: &Path,
 ) -> Result<()> {
-    let contract: Contract = serde_json::from_value(crate::json::parse(
-        &files
-            .get(CONTRACT)
-            .context("project needs .ci/verification.json with CI-equivalent checks")?
-            .bytes,
-    )?)?;
-    validate(&contract, files)?;
-    entrypoint(root)?;
+    let declared = files.contains_key(CONTRACT);
+    let contract = match files.get(CONTRACT) {
+        Some(source) => serde_json::from_value(crate::json::parse(&source.bytes)?)?,
+        None => discovery::discover(root, files)?,
+    };
+    validate(&contract, files, declared)?;
+    if declared {
+        entrypoint(root)?;
+    }
     let selected = if suite == "local" {
         None
     } else {

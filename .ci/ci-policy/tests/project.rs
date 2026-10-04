@@ -87,6 +87,30 @@ fn accepted(output: &std::process::Output) {
 }
 
 #[test]
+fn a_pinned_cargo_extension_runs_the_actual_project_tests() {
+    let (repository, cache) = fixture();
+    repository.write("Cargo.toml", b"[package]\nname = \"extension-fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\npublish = false\n");
+    repository.write(
+        "Cargo.lock",
+        b"version = 4\n\n[[package]]\nname = \"extension-fixture\"\nversion = \"0.1.0\"\n",
+    );
+    repository.write(
+        "src/lib.rs",
+        b"#[test]\nfn real_project_behavior() {\n    assert_eq!(1 + 1, 2);\n}\n",
+    );
+    let mut value = contract();
+    value["checks"][0]["command"] = json!(["cargo", "nextest", "run", "--locked"]);
+    value["checks"][0]["tools"] = json!(["rust@1.99.0", "cargo:cargo-nextest@0.9.146"]);
+    repository.write(
+        ".ci/verification.json",
+        &serde_json::to_vec(&value).unwrap(),
+    );
+    let output = invoke(&repository, &cache, &[]);
+    accepted(&output);
+    assert!(String::from_utf8_lossy(&output.stderr).contains("real_project_behavior"));
+}
+
+#[test]
 fn unchanged_checked_inputs_reuse_success_but_changed_source_runs_again() {
     let (repository, cache) = fixture();
     let first = invoke(&repository, &cache, &[]);

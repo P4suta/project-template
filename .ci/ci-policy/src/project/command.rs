@@ -14,7 +14,7 @@ pub(super) fn permitted(arguments: &[String]) -> bool {
     match program {
         "ci-policy" => matches!(
             action,
-            Some("check" | "actionlint" | "prove" | "prove-source")
+            Some("check" | "source-check" | "actionlint" | "prove" | "prove-source")
         ),
         "rustc" | "lean" | "ghc" => true,
         "git" => matches!(

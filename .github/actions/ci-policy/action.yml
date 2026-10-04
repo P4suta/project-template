@@ -31,5 +31,6 @@ runs:
         CARGO_TARGET_DIR: ${{ github.workspace }}/target
       run: | # zizmor: ignore[github-env] -- Installs only this action's compiled policy into a fixed runner-owned directory.
         mise x rust@1.99.0 -- cargo install --locked --path "$POLICY_SOURCE/.ci/ci-policy" --root "$POLICY_OUTPUT"
+        "$POLICY_OUTPUT/bin/ci-policy" install-tools --workflow-only
         printf 'executable=%s/bin/ci-policy\n' "$POLICY_OUTPUT" >> "$GITHUB_OUTPUT"
         printf '%s/bin\n' "$POLICY_OUTPUT" >> "$GITHUB_PATH"

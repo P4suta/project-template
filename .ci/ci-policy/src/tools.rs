@@ -59,7 +59,7 @@ pub fn install(workflow_only: bool) -> Result<()> {
                 !workflow_only
                     || matches!(
                         program.as_str(),
-                        "actionlint" | "gitleaks" | "shellcheck" | "typos" | "zizmor"
+                        "actionlint" | "gitleaks" | "shellcheck" | "taplo" | "typos" | "zizmor"
                     )
             })
             .map(|(_, pin)| format!("{}@{}", pin.tool, pin.version)),

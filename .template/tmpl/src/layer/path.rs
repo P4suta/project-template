@@ -30,7 +30,7 @@ pub(super) fn validate(bytes: &[u8]) -> Result<(), Error> {
 }
 
 const fn rooted(bytes: &[u8]) -> bool {
-    matches!(bytes, [b'/' | b'\\', ..] | [_, b':', ..])
+    matches!(bytes, [b'/' | b'\\', ..] | [b'a'..=b'z' | b'A'..=b'Z', b':', ..])
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -64,7 +64,8 @@ mod proofs {
         let input = &bytes[..usize::from(length)];
         assert_eq!(
             rooted(input),
-            length >= 1 && matches!(bytes[0], b'/' | b'\\') || length >= 2 && bytes[1] == b':'
+            length >= 1 && matches!(bytes[0], b'/' | b'\\')
+                || length >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
         );
         let result = validate(input);
         let mut parent = false;
@@ -99,6 +100,7 @@ mod proofs {
         }
         assert_eq!(validate(b"safe/../escape"), Err(Error::Traversal));
         assert_eq!(validate(b"safe\\..\\escape"), Err(Error::Traversal));
+        assert!(validate(b"1:relative").is_ok());
         kani::cover!(result.is_ok());
         kani::cover!(result == Err(Error::Absolute));
         kani::cover!(result == Err(Error::Traversal));

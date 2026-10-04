@@ -21,8 +21,8 @@ jobs:
     name: codeql
     permissions:
       contents: read
-      security-events: write
-      actions: read
+      security-events: write # SECURITY: Upload code-scanning results.
+      actions: read # SECURITY: Read the analyzed workflow run.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
