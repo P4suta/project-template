@@ -1,7 +1,7 @@
 mod common;
 
 use common::Repository;
-use std::{fs, process::Command};
+use std::fs;
 
 fn repository() -> Repository {
     let repository = Repository::new();
@@ -21,13 +21,56 @@ fn repository() -> Repository {
 }
 
 fn invoke(repository: &Repository, cache: &std::path::Path) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_ci-policy"))
+    let configuration = tempfile::tempdir().unwrap();
+    let global = configuration.path().join("config.toml");
+    fs::write(&global, "").unwrap();
+    repository
+        .command(env!("CARGO_BIN_EXE_ci-policy"))
+        .env("MISE_GLOBAL_CONFIG_FILE", &global)
+        .env("MISE_CONFIG_DIR", configuration.path())
         .args(["project-check", "--root"])
         .arg(repository.path())
         .arg("--cache-directory")
         .arg(cache)
         .output()
         .expect("global project gate")
+}
+
+#[test]
+fn workflow_checks_activate_transitive_tools_without_global_defaults() {
+    let repository = repository();
+    let workflow = "name: CI\non: [pull_request]\npermissions:\n  contents: read\nconcurrency:\n  group: 'ci-${{ github.ref }}'\n  cancel-in-progress: true\njobs:\n  quality:\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n    steps:\n      - run: cargo test --locked\n";
+    repository.write(".github/workflows/ci.yml", workflow.as_bytes());
+    let configuration = tempfile::tempdir().unwrap();
+    let global = configuration.path().join("config.toml");
+    fs::write(&global, "").unwrap();
+    let mut command = repository.command(env!("CARGO_BIN_EXE_ci-policy"));
+    command
+        .env("MISE_GLOBAL_CONFIG_FILE", &global)
+        .env("MISE_CONFIG_DIR", configuration.path())
+        .args(["source-check", "--root"])
+        .arg(repository.path());
+    let output = command.output().unwrap();
+    let diagnostic = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.status.success(), "{diagnostic}");
+    repository.write(
+        ".github/workflows/ci.yml",
+        workflow
+            .replace("cargo test --locked", "echo $UNQUOTED")
+            .as_bytes(),
+    );
+    let output = command.output().unwrap();
+    let diagnostic = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!output.status.success());
+    assert!(diagnostic.contains("SC2086"), "{diagnostic}");
 }
 
 #[test]

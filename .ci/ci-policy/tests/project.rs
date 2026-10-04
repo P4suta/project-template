@@ -58,23 +58,13 @@ fn invoke(
 }
 
 fn invocation(repository: &Repository, cache: &tempfile::TempDir, extra: &[&str]) -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_ci-policy"));
+    let mut command = repository.command(env!("CARGO_BIN_EXE_ci-policy"));
     command
         .args(["project-check", "--root"])
         .arg(repository.path())
         .arg("--cache-directory")
         .arg(cache.path())
         .args(extra);
-    for key in [
-        "GIT_DIR",
-        "GIT_WORK_TREE",
-        "GIT_INDEX_FILE",
-        "GIT_COMMON_DIR",
-        "GIT_OBJECT_DIRECTORY",
-        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    ] {
-        command.env_remove(key);
-    }
     command
 }
 

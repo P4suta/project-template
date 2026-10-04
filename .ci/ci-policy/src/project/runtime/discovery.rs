@@ -29,7 +29,7 @@ fn baseline(language: Language) -> &'static [Operation] {
         Language::Go => &[Operation::Analyze, Operation::Test],
         Language::Swift | Language::Dotnet => &[Operation::Build, Operation::Test],
         Language::Lean => &[Operation::Build],
-        Language::Haskell => &[Operation::Analyze, Operation::Test],
+        Language::Haskell => &[Operation::Analyze, Operation::Build, Operation::Test],
     }
 }
 
@@ -61,6 +61,7 @@ fn arguments(language: Language, operation: Operation) -> Option<&'static [&'sta
         (Language::Dotnet, Operation::Test) => Some(&["dotnet", "test"]),
         (Language::Lean, Operation::Build) => Some(&["lake", "build"]),
         (Language::Haskell, Operation::Analyze) => Some(&["cabal", "check"]),
+        (Language::Haskell, Operation::Build) => Some(&["cabal", "build"]),
         (Language::Haskell, Operation::Test) => Some(&["cabal", "test"]),
         _ => None,
     }
@@ -364,11 +365,11 @@ mod proofs {
         if language != Language::Lean {
             assert!(baseline.contains(&Operation::Test));
         }
-        assert!(
-            baseline
-                .iter()
-                .any(|operation| matches!(operation, Operation::Analyze | Operation::Build))
-        );
+        assert!(baseline.iter().any(|operation| match language {
+            Language::Rust | Language::Go => *operation == Operation::Analyze,
+            Language::Swift | Language::Dotnet | Language::Lean | Language::Haskell =>
+                *operation == Operation::Build,
+        }));
         kani::cover!(language == Language::Rust);
         kani::cover!(language == Language::Lean);
     }

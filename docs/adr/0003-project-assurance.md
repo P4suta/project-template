@@ -45,6 +45,8 @@ Required proof inventories include reachable covers and a deliberately false cla
 Native integration tests exercise staged HEAD identity, pushed revisions, cache invalidation, missing contracts, CI bypass attempts, and descendant cleanup after success, failure, and timeout.
 Configuration-free Rust fixtures exercise real Clippy, tests, new CI commands, unknown-command rejection, and the absence of repository setup artifacts.
 Native Windows preparation starts with an isolated mise installation, uses the same pinned Cargo binary installer as CI, and runs an actual pinned Cargo extension through the production project runner.
+Verification tools activate their complete pinned dependency set, including ShellCheck when Actionlint inspects a workflow.
+Kani checks this production dependency selection, and native integration tests verify valid workflows and rejected ShellCheck violations with an empty global mise configuration.
 Kani also checks hook-root selection by reference identity and NUL-delimited path encoding for arbitrary paths up to 32 bytes.
 Integration tests exercise large file inventories, literal filenames, and native executable modes.
 Engine proofs check every 64-byte hash input and portable path validation for arbitrary byte strings up to 32 bytes, with complete unwinding and independent component checks.

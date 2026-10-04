@@ -13,7 +13,8 @@ use crate::{Conclusion, gate};
 mod source;
 pub use source::validate_source;
 
-pub const HARNESSES: [&str; 22] = [
+pub const HARNESSES: [&str; 23] = [
+    "tools::proofs::every_tool_activates_its_complete_dependency_set",
     "verification::proofs::every_workflow_and_action_remains_required_on_push",
     "project::runtime::discovery::proofs::discovered_languages_have_supported_compiler_and_behavior_checks",
     "hooks::source::proofs::repository_hooks_always_use_the_owners_root",
