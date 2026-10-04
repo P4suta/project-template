@@ -50,6 +50,7 @@ Retain hosted permissions and release protections; ordinary project verification
 Kani imports production decisions for phase selection, exact evidence reuse, cumulative budgets, complete coverage, deadline outcomes, and permitted Cargo operations.
 It checks that a shared aggregate accepts only the policy repository's own Action or its exact public namespace pinned to an immutable commit, for arbitrary reference bytes up to 91 bytes.
 It also proves that automatic compilation cannot exceed either the owner's positive job limit or two jobs.
+Both installation and verification identities use the same hexadecimal encoder; Kani proves that its production byte conversion preserves every byte, and native known-answer tests preserve SHA-256 identities across dependency updates.
 It also checks the required workflow scope and each discovered language's compiler and behavioral operation selection.
 Required proof inventories include reachable covers and a deliberately false claim that must fail with the expected assertion.
 Native integration tests exercise staged HEAD identity, pushed revisions, cache invalidation, missing contracts, CI bypass attempts, and descendant cleanup after success, failure, and timeout.

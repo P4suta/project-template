@@ -13,7 +13,8 @@ use crate::{Conclusion, gate};
 mod source;
 pub use source::validate_source;
 
-pub const HARNESSES: [&str; 25] = [
+pub const HARNESSES: [&str; 26] = [
+    "hex::proofs::hexadecimal_identity_preserves_every_byte",
     "project::protocol::proofs::automatic_compilation_preserves_lower_owner_limits",
     "project::runtime::proofs::shared_aggregate_requires_the_policy_namespace_and_immutable_revision",
     "tools::proofs::every_tool_activates_its_complete_dependency_set",

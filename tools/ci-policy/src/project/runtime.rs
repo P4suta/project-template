@@ -762,7 +762,7 @@ fn hash_parts(parts: impl IntoIterator<Item = impl AsRef<[u8]>>) -> String {
         hash.update((bytes.len() as u64).to_le_bytes());
         hash.update(bytes);
     }
-    format!("{:x}", hash.finalize())
+    crate::hex::encode(&hash.finalize())
 }
 
 fn environment(check: &Check) -> BTreeMap<OsString, OsString> {
