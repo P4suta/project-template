@@ -13,7 +13,7 @@
         "cargo",
         "fmt",
         "--manifest-path",
-        ".ci/ci-policy/Cargo.toml",
+        "tools/ci-policy/Cargo.toml",
         "--check"
       ],
       "tools": [
@@ -21,7 +21,7 @@
       ],
       "timeout_seconds": 10,
       "inputs": [
-        ".ci/ci-policy/"
+        "tools/ci-policy/"
       ],
       "environment": [],
       "cache": "content"
@@ -38,7 +38,7 @@
         "cargo",
         "fmt",
         "--manifest-path",
-        ".ci/ci-policy/tests/fixtures/xtask/Cargo.toml",
+        "tools/ci-policy/tests/fixtures/xtask/Cargo.toml",
         "--check"
       ],
       "tools": [
@@ -46,7 +46,7 @@
       ],
       "timeout_seconds": 5,
       "inputs": [
-        ".ci/ci-policy/tests/fixtures/"
+        "tools/ci-policy/tests/fixtures/"
       ],
       "environment": [],
       "cache": "content"
@@ -114,7 +114,7 @@
         "--all-targets",
         "--all-features",
         "--manifest-path",
-        ".ci/ci-policy/Cargo.toml",
+        "tools/ci-policy/Cargo.toml",
         "--",
         "-D",
         "warnings"
@@ -124,7 +124,7 @@
       ],
       "timeout_seconds": 120,
       "inputs": [
-        ".ci/ci-policy/"
+        "tools/ci-policy/"
       ],
       "environment": [],
       "cache": "content"
@@ -143,15 +143,15 @@
         "--locked",
         "--all-targets",
         "--manifest-path",
-        ".ci/ci-policy/Cargo.toml"
+        "tools/ci-policy/Cargo.toml"
       ],
       "tools": [
         "rust@1.99.0",
         "just@1.58.0"
       ],
-      "timeout_seconds": 180,
+      "timeout_seconds": 300,
       "inputs": [
-        ".ci/ci-policy/"
+        "tools/ci-policy/"
       ],
       "environment": [],
       "cache": "content"
@@ -234,7 +234,7 @@
         "rust@1.99.0",
         "cargo:cargo-llvm-cov@0.9.1"
       ],
-      "timeout_seconds": 300,
+      "timeout_seconds": 180,
       "inputs": [
         ".template/"
       ],
@@ -307,7 +307,7 @@
         "ci-policy",
         "prove",
         "--manifest-path",
-        ".ci/ci-policy/Cargo.toml"
+        "tools/ci-policy/Cargo.toml"
       ],
       "tools": [
         "rust@1.99.0",
@@ -315,7 +315,7 @@
       ],
       "timeout_seconds": 300,
       "inputs": [
-        ".ci/ci-policy/"
+        "tools/ci-policy/"
       ],
       "environment": [],
       "cache": "content"
