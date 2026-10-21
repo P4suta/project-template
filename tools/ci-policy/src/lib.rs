@@ -72,6 +72,7 @@ pub fn immutable_reference(reference: &str) -> bool {
 }
 
 pub mod handoff;
+mod hex;
 pub mod hooks;
 pub mod json;
 pub mod local;

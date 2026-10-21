@@ -41,7 +41,12 @@ impl Repository {
     }
 
     pub fn git_command(&self) -> Command {
-        self.command("git")
+        let mut command = self.command("git");
+        command.env("GIT_CONFIG_NOSYSTEM", "1").env(
+            "GIT_CONFIG_GLOBAL",
+            if cfg!(windows) { "NUL" } else { "/dev/null" },
+        );
+        command
     }
 
     pub fn command(&self, program: impl AsRef<std::ffi::OsStr>) -> Command {
@@ -108,14 +113,7 @@ impl Repository {
             .env("GIT_AUTHOR_EMAIL", "fixture@example.com")
             .env("GIT_COMMITTER_NAME", "Fixture")
             .env("GIT_COMMITTER_EMAIL", "fixture@example.com")
-            .args([
-                "-c",
-                "commit.gpgsign=false",
-                "commit-tree",
-                tree,
-                "-m",
-                "Fixture",
-            ]);
+            .args(["commit-tree", tree, "-m", "Fixture"]);
         for parent in parents {
             command.args(["-p", parent]);
         }

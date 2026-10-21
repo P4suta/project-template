@@ -19,7 +19,7 @@ check-staged:
     ci-policy project-check --index --phase commit
 
 fmt:
-    mise x rust@1.99.0 -- cargo fmt --manifest-path .ci/ci-policy/Cargo.toml
+    mise x rust@1.99.0 -- cargo fmt --manifest-path tools/ci-policy/Cargo.toml
     mise x -- cargo fmt --manifest-path {{ENGINE_MANIFEST}} --all
 
 test:
@@ -32,7 +32,7 @@ coverage:
     mise x -- cargo llvm-cov --locked --manifest-path {{ENGINE_MANIFEST}} --ignore-filename-regex 'src/main\.rs' --fail-under-regions 94 --summary-only
 
 prove:
-    ci-policy prove --manifest-path .ci/ci-policy/Cargo.toml
+    ci-policy prove --manifest-path tools/ci-policy/Cargo.toml
 
 verify-template:
     mise x -- cargo run --locked --manifest-path {{ENGINE_MANIFEST}} --release -- verify

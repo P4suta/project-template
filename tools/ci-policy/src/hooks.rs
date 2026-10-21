@@ -42,7 +42,7 @@ fn installed(program: &str) -> Result<PathBuf> {
 }
 
 fn digest(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    crate::hex::encode(&Sha256::digest(bytes))
 }
 
 fn git(root: &Path, args: &[&str]) -> Result<Vec<u8>> {

@@ -77,6 +77,67 @@ fn accepted(output: &std::process::Output) {
 }
 
 #[test]
+fn an_explicit_project_contract_can_bind_ci_without_a_justfile() {
+    let (repository, cache) = fixture();
+    fs::remove_file(repository.path().join("Justfile")).unwrap();
+    let path = repository.path().join(".github/workflows/ci.yml");
+    let source = fs::read_to_string(&path).unwrap().replace(
+        "mise x -- just check ci.yml::quality",
+        "mise x -- ci-policy project-check --suite ci.yml::quality",
+    );
+    fs::write(&path, &source).unwrap();
+    accepted(&invoke(&repository, &cache, &[]));
+    for command in [
+        "ci-policy project-check --suite ci.yml::quality --phase commit",
+        "ci-policy project-check --suite ci.yml::other",
+        "ci-policy project-check --suite ci.yml::quality || true",
+    ] {
+        fs::write(
+            &path,
+            source.replace(
+                "mise x -- ci-policy project-check --suite ci.yml::quality",
+                command,
+            ),
+        )
+        .unwrap();
+        assert!(!invoke(&repository, &cache, &[]).status.success());
+    }
+}
+
+#[test]
+fn another_repository_can_use_the_immutable_shared_aggregate_action() {
+    let (repository, cache) = fixture();
+    let path = repository.path().join(".github/workflows/ci.yml");
+    let source = fs::read_to_string(&path).unwrap();
+    let reference = "P4suta/project-template/.github/actions/ci-policy@0a0bc78cfe9370c14beecbeca8f230f824218790";
+    let aggregate = format!(
+        "  required:\n    if: always()\n    needs: [quality]\n    runs-on: ubuntu-latest\n    steps:\n      - id: policy\n        uses: {reference}\n      - env:\n          POLICY: ${{{{ steps.policy.outputs.executable }}}}\n          RESULTS: ${{{{ toJSON(needs) }}}}\n        run: '\"$POLICY\" gate --needs \"$RESULTS\" --require-json ''[\"quality\"]'''\n"
+    );
+    fs::write(&path, format!("{source}{aggregate}")).unwrap();
+    let mut value = contract();
+    value["hosted"] = json!([{
+        "workflow": "ci.yml", "job": "required", "capability": "aggregate"
+    }]);
+    repository.write(
+        ".ci/verification.json",
+        &serde_json::to_vec(&value).unwrap(),
+    );
+    accepted(&invoke(&repository, &cache, &[]));
+    for action in [
+        "P4suta/project-template/.github/actions/ci-policy@main",
+        "another-owner/project-template/.github/actions/ci-policy@0a0bc78cfe9370c14beecbeca8f230f824218790",
+        "P4suta/project-template/.github/actions/other@0a0bc78cfe9370c14beecbeca8f230f824218790",
+    ] {
+        fs::write(
+            &path,
+            format!("{source}{}", aggregate.replace(reference, action)),
+        )
+        .unwrap();
+        assert!(!invoke(&repository, &cache, &[]).status.success());
+    }
+}
+
+#[test]
 fn a_pinned_cargo_extension_runs_the_actual_project_tests() {
     let (repository, cache) = fixture();
     repository.write("Cargo.toml", b"[package]\nname = \"extension-fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\npublish = false\n");
@@ -137,6 +198,68 @@ fn fixed_runner_settings_do_not_invalidate_effective_environment() {
         .unwrap();
     accepted(&second);
     assert!(String::from_utf8_lossy(&second.stdout).contains("\"outcome\":\"reused\""));
+}
+
+#[test]
+fn the_native_runner_honors_lower_compiler_limits_and_rejects_zero() {
+    let (repository, cache, target) = descendant_fixture();
+    let marker = cache.path().join("compiler-jobs");
+    let path = repository.path().join(".ci/verification.json");
+    let mut value: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    value["checks"][0]["environment"] = json!(["CI_POLICY_TEST_MARKER", "CI_POLICY_TEST_MODE"]);
+    value["checks"][0]["cache"] = json!("always");
+    fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+    for (requested, expected) in [("1", "1"), ("32", "2")] {
+        let output = invocation(&repository, &cache, &[])
+            .env("CARGO_BUILD_JOBS", requested)
+            .env("CARGO_TARGET_DIR", &target)
+            .env("CI_POLICY_TEST_MARKER", &marker)
+            .env("CI_POLICY_TEST_MODE", "environment")
+            .output()
+            .unwrap();
+        accepted(&output);
+        assert_eq!(fs::read_to_string(&marker).unwrap(), expected);
+    }
+    fs::remove_file(&marker).unwrap();
+    let output = invocation(&repository, &cache, &[])
+        .env("CARGO_BUILD_JOBS", "0")
+        .env("CARGO_TARGET_DIR", &target)
+        .env("CI_POLICY_TEST_MARKER", &marker)
+        .env("CI_POLICY_TEST_MODE", "environment")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(!marker.exists());
+}
+
+#[test]
+fn public_advisory_fetches_keep_https_without_modifying_the_owners_git_policy() {
+    let (repository, cache) = fixture();
+    repository.write("Cargo.toml", b"[package]\nname = \"audit-fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\nlicense = \"MIT\"\npublish = false\n");
+    repository.write(
+        "Cargo.lock",
+        b"version = 4\n\n[[package]]\nname = \"audit-fixture\"\nversion = \"0.1.0\"\n",
+    );
+    let configuration = tempfile::NamedTempFile::new().unwrap();
+    let original =
+        b"[url \"ssh://unavailable.invalid/\"]\n    insteadOf = https://github.com/RustSec/\n";
+    fs::write(configuration.path(), original).unwrap();
+    let mut value = contract();
+    value["checks"][0]["command"] = json!(["cargo", "deny", "--locked", "check", "advisories"]);
+    value["checks"][0]["phase"] = json!("development");
+    value["checks"][0]["tools"] = json!(["rust@1.99.0", "cargo:cargo-deny@0.20.2"]);
+    value["checks"][0]["environment"] = json!(["GIT_CONFIG_GLOBAL"]);
+    value["checks"][0]["timeout_seconds"] = json!(60);
+    repository.write(
+        ".ci/verification.json",
+        &serde_json::to_vec(&value).unwrap(),
+    );
+    let output = invocation(&repository, &cache, &[])
+        .env("GIT_CONFIG_GLOBAL", configuration.path())
+        .output()
+        .unwrap();
+    accepted(&output);
+    assert_eq!(fs::read(configuration.path()).unwrap(), original);
 }
 
 #[test]
@@ -327,8 +450,6 @@ fn descendant_fixture() -> (Repository, tempfile::TempDir, std::path::PathBuf) {
             "cargo",
             "build",
             "--locked",
-            "--jobs",
-            "2",
             "--manifest-path",
             "xtask/Cargo.toml",
         ])
