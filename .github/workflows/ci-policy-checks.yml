@@ -22,7 +22,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
         with:
-          version: 2026.10.0
+          version: 2026.10.17
           install: false
       - run: mise install rust@1.99.0 just@1.58.0 cargo:kani-verifier@0.68.0
       - name: Prepare the exact native verifier

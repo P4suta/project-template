@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.28
 # Generic project-template development / CI container.
 # Every developer and CI job runs inside this image. Host toolchain is
 # never invoked.

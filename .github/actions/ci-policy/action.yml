@@ -9,14 +9,14 @@ runs:
   steps:
     - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
       with:
-        version: 2026.10.0
+        version: 2026.10.17
         install: false
     - name: Prepare the policy compiler
       shell: bash
       run: |
         mise install rust@1.99.0
         mise x rust@1.99.0 -- rustup component add rustfmt clippy --toolchain 1.99.0
-    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+    - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       with:
         workspaces: ${{ github.action_path }}/../../../.ci/ci-policy -> ${{ github.workspace }}/target
         cmd-format: mise x rust@1.99.0 -- {0}
