@@ -12,7 +12,7 @@
 # matching toolchain. Keep the two pins in sync on every bump.
 
 [tools]
-rust = "1.95.0"
+rust = "1.99.1"
 "cargo:cargo-nextest" = "latest"
 "cargo:cargo-deny" = "latest"
 "cargo:cargo-llvm-cov" = "latest"
