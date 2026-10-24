@@ -1,24 +1,30 @@
-fn pair(byte: u8) -> [u8; 2] {
+fn fragments(byte: u8) -> [&'static str; 2] {
     const NIBBLE_BITS: u32 = 4;
     const NIBBLE_MASK: u8 = 0x0f;
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    const DIGITS: [&str; 16] = [
+        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f",
+    ];
     [
         DIGITS[usize::from(byte >> NIBBLE_BITS)],
         DIGITS[usize::from(byte & NIBBLE_MASK)],
     ]
 }
 
+#[cfg(kani)]
+fn pair(byte: u8) -> [u8; 2] {
+    let [high, low] = fragments(byte);
+    [high.as_bytes()[0], low.as_bytes()[0]]
+}
+
 pub(crate) fn encode(bytes: &[u8]) -> String {
     const DIGITS_PER_BYTE: usize = 2;
-    let encoded_length = bytes.len().saturating_mul(DIGITS_PER_BYTE);
-    let mut encoded = vec![0; encoded_length];
-    for (index, &byte) in bytes.iter().enumerate() {
-        let [high, low] = pair(byte);
-        let output_index = index * DIGITS_PER_BYTE;
-        encoded[output_index] = high;
-        encoded[output_index + 1] = low;
+    let mut encoded = String::with_capacity(bytes.len().saturating_mul(DIGITS_PER_BYTE));
+    for &byte in bytes {
+        let [high, low] = fragments(byte);
+        encoded.push_str(high);
+        encoded.push_str(low);
     }
-    String::from_utf8(encoded).expect("hexadecimal digits are ASCII")
+    encoded
 }
 
 #[cfg(kani)]
