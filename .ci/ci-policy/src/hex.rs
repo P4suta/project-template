@@ -9,11 +9,14 @@ fn pair(byte: u8) -> [u8; 2] {
 }
 
 pub(crate) fn encode(bytes: &[u8]) -> String {
-    bytes
-        .iter()
-        .flat_map(|&byte| pair(byte))
-        .map(char::from)
-        .collect()
+    const DIGITS_PER_BYTE: usize = 2;
+    let mut encoded = String::with_capacity(bytes.len().saturating_mul(DIGITS_PER_BYTE));
+    for &byte in bytes {
+        let [high, low] = pair(byte);
+        encoded.push(char::from(high));
+        encoded.push(char::from(low));
+    }
+    encoded
 }
 
 #[cfg(kani)]
