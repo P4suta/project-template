@@ -24,10 +24,10 @@ jobs:
         with:
           version: 2026.10.17
           install: false
-      - run: mise install rust@1.99.0 just@1.58.0 cargo:kani-verifier@0.68.0
+      - run: mise install rust@1.99.1 just@1.59.0 cargo:kani-verifier@0.68.0
       - name: Prepare the exact native verifier
         working-directory: ${{ runner.temp }}
-        run: mise x rust@1.99.0 cargo:kani-verifier@0.68.0 -- kani setup
+        run: mise x rust@1.99.1 cargo:kani-verifier@0.68.0 -- kani setup
       - id: policy
         uses: $/.github/actions/ci-policy
       - run: mise x -- just check ci-policy-checks.yml::proofs

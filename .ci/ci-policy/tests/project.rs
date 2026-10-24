@@ -8,7 +8,7 @@ use common::Repository;
 fn fixture() -> (Repository, tempfile::TempDir) {
     let repository = Repository::new();
     repository.write("src/lib.rs", b"pub fn value() -> u8 { 1 }\n");
-    repository.write("mise.toml", b"[tools]\nrust = \"1.99.0\"\n");
+    repository.write("mise.toml", b"[tools]\nrust = \"1.99.1\"\n");
     repository.write(
         "Justfile",
         b"check suite=\"local\":\n    ci-policy project-check --suite {{quote(suite)}}\n",
@@ -33,7 +33,7 @@ fn contract() -> Value {
             "phase": "commit",
             "platforms": [std::env::consts::OS],
             "command": ["rustc", "--version"],
-            "tools": ["rust@1.99.0"],
+            "tools": ["rust@1.99.1"],
             "inputs": ["src/"],
             "environment": [],
             "cache": "content",
@@ -90,7 +90,7 @@ fn a_pinned_cargo_extension_runs_the_actual_project_tests() {
     );
     let mut value = contract();
     value["checks"][0]["command"] = json!(["cargo", "nextest", "run", "--locked"]);
-    value["checks"][0]["tools"] = json!(["rust@1.99.0", "cargo:cargo-nextest@0.9.146"]);
+    value["checks"][0]["tools"] = json!(["rust@1.99.1", "cargo:cargo-nextest@0.9.149"]);
     repository.write(
         ".ci/verification.json",
         &serde_json::to_vec(&value).unwrap(),
@@ -322,7 +322,7 @@ fn descendant_fixture() -> (Repository, tempfile::TempDir, std::path::PathBuf) {
         .env("CARGO_TARGET_DIR", &target)
         .args([
             "x",
-            "rust@1.99.0",
+            "rust@1.99.1",
             "--",
             "cargo",
             "build",

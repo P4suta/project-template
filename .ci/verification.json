@@ -17,7 +17,7 @@
         "--check"
       ],
       "tools": [
-        "rust@1.99.0"
+        "rust@1.99.1"
       ],
       "timeout_seconds": 10,
       "inputs": [
@@ -42,7 +42,7 @@
         "--check"
       ],
       "tools": [
-        "rust@1.99.0"
+        "rust@1.99.1"
       ],
       "timeout_seconds": 5,
       "inputs": [
@@ -69,7 +69,7 @@
         "--check"
       ],
       "tools": [
-        "rust@1.99.0"
+        "rust@1.99.1"
       ],
       "timeout_seconds": 10,
       "inputs": [
@@ -90,7 +90,7 @@
         "typos"
       ],
       "tools": [
-        "typos@1.50.3"
+        "typos@1.51.1"
       ],
       "timeout_seconds": 5,
       "inputs": [
@@ -120,7 +120,7 @@
         "warnings"
       ],
       "tools": [
-        "rust@1.99.0"
+        "rust@1.99.1"
       ],
       "timeout_seconds": 120,
       "inputs": [
@@ -146,8 +146,8 @@
         ".ci/ci-policy/Cargo.toml"
       ],
       "tools": [
-        "rust@1.99.0",
-        "just@1.58.0"
+        "rust@1.99.1",
+        "just@1.59.0"
       ],
       "timeout_seconds": 180,
       "inputs": [
@@ -176,7 +176,7 @@
         "warnings"
       ],
       "tools": [
-        "rust@1.99.0"
+        "rust@1.99.1"
       ],
       "timeout_seconds": 180,
       "inputs": [
@@ -202,8 +202,8 @@
         ".template/tmpl/Cargo.toml"
       ],
       "tools": [
-        "rust@1.99.0",
-        "cargo:cargo-nextest@0.9.146"
+        "rust@1.99.1",
+        "cargo:cargo-nextest@0.9.149"
       ],
       "timeout_seconds": 180,
       "inputs": [
@@ -231,7 +231,7 @@
         "--summary-only"
       ],
       "tools": [
-        "rust@1.99.0",
+        "rust@1.99.1",
         "cargo:cargo-llvm-cov@0.9.1"
       ],
       "timeout_seconds": 300,
@@ -258,7 +258,7 @@
         "check"
       ],
       "tools": [
-        "rust@1.99.0",
+        "rust@1.99.1",
         "cargo:cargo-deny@0.20.2"
       ],
       "timeout_seconds": 90,
@@ -287,7 +287,7 @@
         "verify"
       ],
       "tools": [
-        "rust@1.99.0"
+        "rust@1.99.1"
       ],
       "timeout_seconds": 180,
       "inputs": [
@@ -310,7 +310,7 @@
         ".ci/ci-policy/Cargo.toml"
       ],
       "tools": [
-        "rust@1.99.0",
+        "rust@1.99.1",
         "cargo:kani-verifier@0.68.0"
       ],
       "timeout_seconds": 300,
@@ -338,7 +338,7 @@
         "production::proofs::reject_invalid_digit_probe"
       ],
       "tools": [
-        "rust@1.99.0",
+        "rust@1.99.1",
         "cargo:kani-verifier@0.68.0"
       ],
       "timeout_seconds": 120,
@@ -366,7 +366,7 @@
         "production::proofs::reject_rooted_path_probe"
       ],
       "tools": [
-        "rust@1.99.0",
+        "rust@1.99.1",
         "cargo:kani-verifier@0.68.0"
       ],
       "timeout_seconds": 120,

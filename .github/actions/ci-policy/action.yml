@@ -14,12 +14,12 @@ runs:
     - name: Prepare the policy compiler
       shell: bash
       run: |
-        mise install rust@1.99.0
-        mise x rust@1.99.0 -- rustup component add rustfmt clippy --toolchain 1.99.0
+        mise install rust@1.99.1
+        mise x rust@1.99.1 -- rustup component add rustfmt clippy --toolchain 1.99.1
     - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       with:
         workspaces: ${{ github.action_path }}/../../../.ci/ci-policy -> ${{ github.workspace }}/target
-        cmd-format: mise x rust@1.99.0 -- {0}
+        cmd-format: mise x rust@1.99.1 -- {0}
         cache-bin: false
         save-if: ${{ github.ref == 'refs/heads/main' }}
     - id: build
@@ -30,7 +30,7 @@ runs:
         CARGO_BUILD_JOBS: "2"
         CARGO_TARGET_DIR: ${{ github.workspace }}/target
       run: | # zizmor: ignore[github-env] -- Installs only this action's compiled policy into a fixed runner-owned directory.
-        mise x rust@1.99.0 -- cargo install --locked --path "$POLICY_SOURCE/.ci/ci-policy" --root "$POLICY_OUTPUT"
+        mise x rust@1.99.1 -- cargo install --locked --path "$POLICY_SOURCE/.ci/ci-policy" --root "$POLICY_OUTPUT"
         "$POLICY_OUTPUT/bin/ci-policy" install-tools --workflow-only
         printf 'executable=%s/bin/ci-policy\n' "$POLICY_OUTPUT" >> "$GITHUB_OUTPUT"
         printf '%s/bin\n' "$POLICY_OUTPUT" >> "$GITHUB_PATH"

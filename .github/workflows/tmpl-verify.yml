@@ -35,18 +35,18 @@ jobs:
         with:
           version: 2026.10.17
           install: false
-      - run: mise install rust@1.99.0 just@1.58.0 typos@1.50.3 cargo-binstall@1.25.1
+      - run: mise install rust@1.99.1 just@1.59.0 typos@1.51.1 cargo-binstall@1.25.1
       - name: Prepare pinned Cargo extensions
         env:
           MISE_CARGO_BINSTALL: "true"
           MISE_CARGO_BINSTALL_ONLY: "true"
-        run: mise x rust@1.99.0 cargo-binstall@1.25.1 -- mise install cargo:cargo-nextest@0.9.146 cargo:cargo-deny@0.20.2
+        run: mise x rust@1.99.1 cargo-binstall@1.25.1 -- mise install cargo:cargo-nextest@0.9.149 cargo:cargo-deny@0.20.2
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: |
             .ci/ci-policy -> ../../target
             .template/tmpl -> ../../target
-          cmd-format: mise x rust@1.99.0 -- {0}
+          cmd-format: mise x rust@1.99.1 -- {0}
           cache-bin: false
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - id: policy
@@ -64,19 +64,19 @@ jobs:
         with:
           version: 2026.10.17
           install: false
-      - run: mise install rust@1.99.0 just@1.58.0 cargo-binstall@1.25.1
-      - run: mise x rust@1.99.0 -- rustup component add llvm-tools-preview --toolchain 1.99.0
+      - run: mise install rust@1.99.1 just@1.59.0 cargo-binstall@1.25.1
+      - run: mise x rust@1.99.1 -- rustup component add llvm-tools-preview --toolchain 1.99.1
       - name: Prepare the pinned coverage extension
         env:
           MISE_CARGO_BINSTALL: "true"
           MISE_CARGO_BINSTALL_ONLY: "true"
-        run: mise x rust@1.99.0 cargo-binstall@1.25.1 -- mise install cargo:cargo-llvm-cov@0.9.1
+        run: mise x rust@1.99.1 cargo-binstall@1.25.1 -- mise install cargo:cargo-llvm-cov@0.9.1
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: |
             .ci/ci-policy -> ../../target
             .template/tmpl -> ../../target
-          cmd-format: mise x rust@1.99.0 -- {0}
+          cmd-format: mise x rust@1.99.1 -- {0}
           cache-bin: false
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - id: policy
