@@ -41,6 +41,7 @@ mod proofs {
     }
 
     #[kani::proof]
+    #[kani::solver(minisat)]
     #[kani::unwind(65)]
     fn hexadecimal_encoding_preserves_the_complete_digest() {
         let bytes: [u8; 32] = kani::any();
