@@ -10,11 +10,13 @@ fn pair(byte: u8) -> [u8; 2] {
 
 pub(crate) fn encode(bytes: &[u8]) -> String {
     const DIGITS_PER_BYTE: usize = 2;
-    let mut encoded = Vec::with_capacity(bytes.len().saturating_mul(DIGITS_PER_BYTE));
-    for &byte in bytes {
+    let encoded_length = bytes.len().saturating_mul(DIGITS_PER_BYTE);
+    let mut encoded = vec![0; encoded_length];
+    for (index, &byte) in bytes.iter().enumerate() {
         let [high, low] = pair(byte);
-        encoded.push(high);
-        encoded.push(low);
+        let output_index = index * DIGITS_PER_BYTE;
+        encoded[output_index] = high;
+        encoded[output_index + 1] = low;
     }
     String::from_utf8(encoded).expect("hexadecimal digits are ASCII")
 }
