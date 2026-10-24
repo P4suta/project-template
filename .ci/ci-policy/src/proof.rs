@@ -271,7 +271,7 @@ fn verify(manifest: &Path, counterexample: bool) -> Result<()> {
     command
         .args([
             "--output-format",
-            "terse",
+            "regular",
             "-Z",
             "unstable-options",
             "--harness-timeout",
