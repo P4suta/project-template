@@ -15,6 +15,9 @@ hooks:
 check suite="local":
     ci-policy project-check --suite {{quote(suite)}}
 
+check-candidate revision suite="local":
+    ci-policy project-check --revision {{quote(revision)}} --phase candidate --suite {{quote(suite)}}
+
 check-staged:
     ci-policy project-check --index --phase commit
 

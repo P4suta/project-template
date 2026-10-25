@@ -13,7 +13,7 @@ use crate::{Conclusion, gate};
 mod source;
 pub use source::validate_source;
 
-pub const HARNESSES: [&str; 26] = [
+pub const HARNESSES: [&str; 27] = [
     "hex::proofs::hexadecimal_identity_preserves_every_byte",
     "project::protocol::proofs::automatic_compilation_preserves_lower_owner_limits",
     "project::runtime::proofs::shared_aggregate_requires_the_policy_namespace_and_immutable_revision",
@@ -25,6 +25,7 @@ pub const HARNESSES: [&str; 26] = [
     "proof::proofs::library_namespaces_cannot_admit_project_functions",
     "proof::source::proofs::macro_recognition_requires_bang_and_delimited_arguments",
     "project::protocol::proofs::reuse_requires_applicable_exact_success",
+    "project::protocol::proofs::candidate_proofs_require_the_candidate_phase",
     "project::protocol::proofs::uncovered_or_empty_ci_cannot_complete",
     "project::protocol::proofs::automatic_checks_are_bounded_by_their_phase",
     "project::protocol::proofs::cumulative_budget_cannot_overflow_or_expand",

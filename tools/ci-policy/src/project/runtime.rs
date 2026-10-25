@@ -23,6 +23,14 @@ use super::protocol::{
 mod discovery;
 
 const CONTRACT: &str = ".ci/verification.json";
+const CANDIDATE_ROLES: [&str; 3] = ["source", "routine", "proofs"];
+const CANDIDATE_CONTROLLER_JOB_COUNT: usize = 4;
+const PROJECT_TEMPLATE_HTTPS: &[u8] = b"https://github.com/P4suta/project-template";
+const PROJECT_TEMPLATE_HTTPS_GIT: &[u8] = b"https://github.com/P4suta/project-template.git";
+const PROJECT_TEMPLATE_SCP: &[u8] = b"git@github.com:P4suta/project-template";
+const PROJECT_TEMPLATE_SCP_GIT: &[u8] = b"git@github.com:P4suta/project-template.git";
+const PROJECT_TEMPLATE_SSH: &[u8] = b"ssh://git@github.com/P4suta/project-template";
+const PROJECT_TEMPLATE_SSH_GIT: &[u8] = b"ssh://git@github.com/P4suta/project-template.git";
 const GIT_LOCATION: [&str; 6] = [
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -31,6 +39,33 @@ const GIT_LOCATION: [&str; 6] = [
     "GIT_OBJECT_DIRECTORY",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
 ];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(kani, derive(kani::Arbitrary))]
+enum PolicyRepository {
+    ProjectTemplate,
+    Consumer,
+}
+
+impl PolicyRepository {
+    fn from_origin(origin: Option<&[u8]>) -> Self {
+        if matches!(
+            origin,
+            Some(
+                PROJECT_TEMPLATE_HTTPS
+                    | PROJECT_TEMPLATE_HTTPS_GIT
+                    | PROJECT_TEMPLATE_SCP
+                    | PROJECT_TEMPLATE_SCP_GIT
+                    | PROJECT_TEMPLATE_SSH
+                    | PROJECT_TEMPLATE_SSH_GIT
+            )
+        ) {
+            Self::ProjectTemplate
+        } else {
+            Self::Consumer
+        }
+    }
+}
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -52,6 +87,12 @@ struct Ci {
     workflow: String,
     job: String,
     checks: Vec<String>,
+    #[serde(default = "development_phase")]
+    phase: Phase,
+}
+
+fn development_phase() -> Phase {
+    Phase::Development
 }
 
 #[derive(Deserialize)]
@@ -73,6 +114,9 @@ enum Capability {
     Approval,
     Campaign,
     Initialization,
+    CandidateSource,
+    CandidateCall,
+    CandidateAggregate,
 }
 
 #[derive(Deserialize)]
@@ -108,6 +152,69 @@ impl<'a> Revision<'a> {
         );
         Ok(Self(value))
     }
+}
+
+pub fn candidate_source(
+    root: &Path,
+    revision: &str,
+    controller_ref: &str,
+    default_branch: &str,
+) -> Result<String> {
+    let revision = Revision::parse(revision)?;
+    ensure!(
+        literal(default_branch) && controller_ref == format!("refs/heads/{default_branch}"),
+        "candidate controller must run from the default branch"
+    );
+    let base = format!("refs/remotes/origin/{default_branch}");
+    ensure!(
+        git(root, &["rev-parse", "HEAD"], true)? == git(root, &["rev-parse", &base], true)?,
+        "candidate controller checkout must match the default branch"
+    );
+    ensure!(
+        git(root, &["cat-file", "-t", revision.0], true)? == b"commit\n",
+        "candidate revision must identify a commit"
+    );
+    git(
+        root,
+        &["merge-base", "--is-ancestor", &base, revision.0],
+        true,
+    )
+    .context("candidate must contain the controller's default branch")?;
+    let resolved = git(root, &["rev-parse", revision.0], true)?;
+    ensure!(
+        std::str::from_utf8(&resolved)?.trim() == revision.0,
+        "candidate revision must match its canonical commit identity"
+    );
+    Ok(revision.0.to_owned())
+}
+
+pub fn qualify_candidate(revision: &str, needs: &str) -> Result<()> {
+    Revision::parse(revision)?;
+    #[derive(Deserialize)]
+    struct CandidateJob {
+        result: String,
+        outputs: BTreeMap<String, String>,
+    }
+    let jobs: BTreeMap<String, CandidateJob> =
+        serde_json::from_value(crate::json::parse(needs.as_bytes())?)?;
+    ensure!(
+        jobs.len() == CANDIDATE_ROLES.len(),
+        "candidate qualification requires exactly source, routine, and proofs"
+    );
+    for role in CANDIDATE_ROLES {
+        let job = jobs
+            .get(role)
+            .context("candidate qualification role is missing")?;
+        ensure!(
+            job.result == "success"
+                && job
+                    .outputs
+                    .get("source_sha")
+                    .is_some_and(|source| source == revision),
+            "candidate role {role} did not succeed for the exact source"
+        );
+    }
+    Ok(())
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -312,7 +419,18 @@ fn declared_source(path: &str) -> bool {
     )
 }
 
-fn validate(contract: &Contract, files: &Files, declared: bool) -> Result<bool> {
+#[derive(Default)]
+struct JustRecipes {
+    check: bool,
+    candidate: bool,
+}
+
+fn validate(
+    contract: &Contract,
+    files: &Files,
+    declared: bool,
+    repository: PolicyRepository,
+) -> Result<JustRecipes> {
     ensure!(
         contract.version == 1
             && !contract.checks.is_empty()
@@ -398,9 +516,9 @@ fn validate(contract: &Contract, files: &Files, declared: bool) -> Result<bool> 
         );
     }
     if !declared {
-        return Ok(false);
+        return Ok(JustRecipes::default());
     }
-    let mut requires_just = false;
+    let mut recipes = JustRecipes::default();
     let mut covered = BTreeSet::new();
     let mut bindings = BTreeSet::new();
     for ci in &contract.ci {
@@ -426,11 +544,25 @@ fn validate(contract: &Contract, files: &Files, declared: bool) -> Result<bool> 
         ensure!(documents.len() == 1, "bound CI workflow is invalid");
         let job = &documents[0]["jobs"][ci.job.as_str()];
         ensure!(job.as_hash().is_some(), "bound CI job is missing");
-        let entry = format!("mise x -- just check {}::{}", ci.workflow, ci.job);
-        let direct = format!(
-            "ci-policy project-check --suite {}::{}",
-            ci.workflow, ci.job
-        );
+        let entry = match ci.phase {
+            Phase::Development => format!("mise x -- just check {}::{}", ci.workflow, ci.job),
+            Phase::Candidate => format!(
+                "mise x -- just check-candidate \"$CANDIDATE_SHA\" {}::{}",
+                ci.workflow, ci.job
+            ),
+            Phase::Commit => anyhow::bail!("CI bindings cannot select only commit checks"),
+        };
+        let direct = match ci.phase {
+            Phase::Development => format!(
+                "ci-policy project-check --suite {}::{}",
+                ci.workflow, ci.job
+            ),
+            Phase::Candidate => format!(
+                "ci-policy project-check --revision \"$CANDIDATE_SHA\" --phase candidate --suite {}::{}",
+                ci.workflow, ci.job
+            ),
+            Phase::Commit => anyhow::bail!("CI bindings cannot select only commit checks"),
+        };
         let activated = format!("mise x -- {direct}");
         ensure!(
             unsuppressed(job),
@@ -439,11 +571,15 @@ fn validate(contract: &Contract, files: &Files, declared: bool) -> Result<bool> 
         let mut bound = false;
         for step in job["steps"].as_vec().context("CI job has no steps")? {
             if unsuppressed(step)
+                && (ci.phase != Phase::Candidate || step["env"].is_badvalue())
                 && let Some(run) = step["run"].as_str().map(str::trim)
                 && (run == entry || run == direct || run == activated)
             {
                 bound = true;
-                requires_just |= run == entry;
+                if run == entry {
+                    recipes.check |= ci.phase == Phase::Development;
+                    recipes.candidate |= ci.phase == Phase::Candidate;
+                }
             }
         }
         ensure!(
@@ -458,6 +594,16 @@ fn validate(contract: &Contract, files: &Files, declared: bool) -> Result<bool> 
                 .iter()
                 .find(|check| &check.id == id)
                 .context("CI binding refers to an unknown check")?;
+            ensure!(
+                ci.phase.includes(check.phase),
+                "CI phase cannot cover a later verification phase"
+            );
+            if ci.phase == Phase::Candidate {
+                ensure!(
+                    job["env"]["CANDIDATE_SHA"].as_str() == Some("${{ inputs.source_sha }}"),
+                    "candidate job must bind its exact source"
+                );
+            }
             for platform in &check.platforms {
                 if runners(job)?.contains(platform) {
                     covered.insert((&check.id, platform));
@@ -480,7 +626,13 @@ fn validate(contract: &Contract, files: &Files, declared: bool) -> Result<bool> 
         let job = &documents[0]["jobs"][hosted.job.as_str()];
         ensure!(
             job.as_hash().is_some()
-                && capability_valid(&hosted.capability, &hosted.workflow, &documents[0], job),
+                && capability_valid(
+                    &hosted.capability,
+                    &hosted.workflow,
+                    &documents[0],
+                    job,
+                    repository
+                ),
             "job does not establish its declared hosted capability"
         );
     }
@@ -527,7 +679,14 @@ fn validate(contract: &Contract, files: &Files, declared: bool) -> Result<bool> 
         coverage.complete(),
         "CI does not cover every declared project check and platform"
     );
-    Ok(requires_just)
+    if contract
+        .checks
+        .iter()
+        .any(|check| check.phase == Phase::Candidate)
+    {
+        candidate_graph(files, contract, repository)?;
+    }
+    Ok(recipes)
 }
 
 fn unsuppressed(value: &Yaml) -> bool {
@@ -536,7 +695,7 @@ fn unsuppressed(value: &Yaml) -> bool {
             || value["continue-on-error"] == Yaml::Boolean(false))
 }
 
-fn entrypoint(root: &Path) -> Result<()> {
+fn entrypoint(root: &Path, recipes: JustRecipes) -> Result<()> {
     let output = private_command("mise", root)
         .env("MISE_AUTO_INSTALL", "false")
         .env("MISE_TRUSTED_CONFIG_PATHS", root)
@@ -562,20 +721,21 @@ fn entrypoint(root: &Path) -> Result<()> {
         [["call", "quote", ["variable", "suite"]]]
     ]]);
     ensure!(
-        recipe["body"] == expected
-            && recipe["dependencies"] == serde_json::json!([])
-            && recipe["attributes"] == serde_json::json!([])
-            && recipe["shebang"] == false
-            && recipe["private"] == false
-            && recipe["parameters"]
-                .as_array()
-                .is_some_and(|parameters| parameters.len() == 1
-                    && parameters[0]["name"] == "suite"
-                    && parameters[0]["default"] == "local"
-                    && parameters[0]["kind"] == "singular"
-                    && parameters[0]["export"] == false
-                    && parameters[0]["flag"] == false
-                    && parameters[0]["multiple"] == false)
+        (!recipes.check
+            || recipe["body"] == expected
+                && recipe["dependencies"] == serde_json::json!([])
+                && recipe["attributes"] == serde_json::json!([])
+                && recipe["shebang"] == false
+                && recipe["private"] == false
+                && recipe["parameters"]
+                    .as_array()
+                    .is_some_and(|parameters| parameters.len() == 1
+                        && parameters[0]["name"] == "suite"
+                        && parameters[0]["default"] == "local"
+                        && parameters[0]["kind"] == "singular"
+                        && parameters[0]["export"] == false
+                        && parameters[0]["flag"] == false
+                        && parameters[0]["multiple"] == false))
             && parsed["settings"]["dotenv_load"] == false
             && parsed["settings"]["export"] == false
             && parsed["settings"]["working_directory"].is_null()
@@ -592,6 +752,41 @@ fn entrypoint(root: &Path) -> Result<()> {
                     .all(|assignment| assignment["export"] == false)),
         "just check must invoke the shared project gate directly"
     );
+    ensure!(
+        !recipes.candidate || parsed["recipes"].get("check-candidate").is_some(),
+        "candidate verification needs the exact revision entrypoint"
+    );
+    if recipes.candidate
+        && let Some(candidate) = parsed["recipes"].get("check-candidate")
+    {
+        ensure!(
+            candidate["body"]
+                == serde_json::json!([[
+                    "ci-policy project-check --revision ",
+                    [["call", "quote", ["variable", "revision"]]],
+                    " --phase candidate --suite ",
+                    [["call", "quote", ["variable", "suite"]]]
+                ]])
+                && candidate["dependencies"] == serde_json::json!([])
+                && candidate["attributes"] == serde_json::json!([])
+                && candidate["shebang"] == false
+                && candidate["private"] == false
+                && candidate["parameters"]
+                    .as_array()
+                    .is_some_and(|parameters| parameters.len() == 2
+                        && parameters[0]["name"] == "revision"
+                        && parameters[0]["default"].is_null()
+                        && parameters[1]["name"] == "suite"
+                        && parameters[1]["default"] == "local"
+                        && parameters
+                            .iter()
+                            .all(|parameter| parameter["kind"] == "singular"
+                                && parameter["export"] == false
+                                && parameter["flag"] == false
+                                && parameter["multiple"] == false)),
+            "just check-candidate must invoke the exact revision gate directly"
+        );
+    }
     Ok(())
 }
 
@@ -601,7 +796,13 @@ fn shell(value: &serde_json::Value) -> bool {
         || value == &serde_json::json!({"command":"sh","arguments":["-eu","-c"]})
 }
 
-fn capability_valid(capability: &Capability, workflow: &str, document: &Yaml, job: &Yaml) -> bool {
+fn capability_valid(
+    capability: &Capability,
+    workflow: &str,
+    document: &Yaml,
+    job: &Yaml,
+    repository: PolicyRepository,
+) -> bool {
     let steps = job["steps"].as_vec();
     let uses = |prefix: &str| {
         steps.is_some_and(|steps| {
@@ -631,14 +832,21 @@ fn capability_valid(capability: &Capability, workflow: &str, document: &Yaml, jo
             job["uses"].as_str().is_some_and(|value| {
                 crate::immutable_reference(value)
                     && (value.starts_with("P4suta/project-template/.github/workflows/")
-                        || value.starts_with("$/.github/workflows/"))
+                        || repository == PolicyRepository::ProjectTemplate
+                            && value.starts_with("$/.github/workflows/"))
                     && (value.contains("common-policy.yml")
                         || value.contains("ci-policy-checks.yml"))
             }) || workflow == "common-policy.yml"
-                && uses("$/.github/actions/ci-policy")
+                && steps.is_some_and(|steps| {
+                    steps.iter().any(|step| {
+                        step["uses"].as_str().is_some_and(|reference| {
+                            policy_action(reference.as_bytes(), repository)
+                        })
+                    })
+                })
                 && runs(" check ")
         }
-        Capability::Aggregate => aggregate_valid(job),
+        Capability::Aggregate => aggregate_valid(job, repository),
         Capability::Approval => !job["environment"].is_badvalue(),
         Capability::Campaign => document["on"].as_hash().is_some_and(|events| {
             !events.is_empty()
@@ -652,20 +860,29 @@ fn capability_valid(capability: &Capability, workflow: &str, document: &Yaml, jo
                     condition.trim() == "github.event.repository.name != 'project-template'"
                 })
         }
+        Capability::CandidateSource => {
+            workflow == "candidate-verification.yml" && candidate_source_job(job, repository)
+        }
+        Capability::CandidateCall => {
+            workflow == "candidate-verification.yml" && candidate_call(job)
+        }
+        Capability::CandidateAggregate => {
+            workflow == "candidate-verification.yml" && candidate_aggregate(job, repository)
+        }
     }
 }
 
 const PUBLIC_POLICY_ACTION: &[u8] = b"P4suta/project-template/.github/actions/ci-policy@";
 const SELF_POLICY_ACTION: &[u8] = b"$/.github/actions/ci-policy";
 
-fn policy_action(reference: &[u8]) -> bool {
-    reference == SELF_POLICY_ACTION
+fn policy_action(reference: &[u8], repository: PolicyRepository) -> bool {
+    (reference == SELF_POLICY_ACTION && repository == PolicyRepository::ProjectTemplate)
         || reference.len() == PUBLIC_POLICY_ACTION.len() + 40
             && reference.starts_with(PUBLIC_POLICY_ACTION)
             && crate::exact_hash(&reference[PUBLIC_POLICY_ACTION.len()..], 40)
 }
 
-fn aggregate_valid(job: &Yaml) -> bool {
+fn aggregate_valid(job: &Yaml, repository: PolicyRepository) -> bool {
     let needs = if let Some(value) = job["needs"].as_str() {
         vec![value]
     } else if let Some(values) = job["needs"].as_vec() {
@@ -689,7 +906,7 @@ fn aggregate_valid(job: &Yaml) -> bool {
                 && unsuppressed(step)
                 && step["uses"]
                     .as_str()
-                    .is_some_and(|reference| policy_action(reference.as_bytes()))
+                    .is_some_and(|reference| policy_action(reference.as_bytes(), repository))
         });
         builds_gate
             && steps.iter().any(|step| {
@@ -720,6 +937,170 @@ fn aggregate_valid(job: &Yaml) -> bool {
                     })
             })
     })
+}
+
+fn policy_step(step: &Yaml, repository: PolicyRepository) -> bool {
+    step["id"].as_str() == Some("policy")
+        && unsuppressed(step)
+        && step["uses"]
+            .as_str()
+            .is_some_and(|reference| policy_action(reference.as_bytes(), repository))
+}
+
+fn candidate_source_job(job: &Yaml, repository: PolicyRepository) -> bool {
+    unsuppressed(job)
+        && job["outputs"]["source_sha"].as_str() == Some("${{ steps.source.outputs.source_sha }}")
+        && job["steps"].as_vec().is_some_and(|steps| {
+            steps.iter().any(|step| policy_step(step, repository))
+                && checkout_bound(job, "${{ github.event.repository.default_branch }}", true)
+                && steps.iter().any(|step| {
+                    unsuppressed(step)
+                        && step["id"].as_str() == Some("source")
+                        && step["env"]["POLICY"].as_str() == Some("${{ steps.policy.outputs.executable }}")
+                        && step["env"]["CANDIDATE_SHA"].as_str() == Some("${{ inputs.revision }}")
+                        && step["env"]["CONTROLLER_REF"].as_str() == Some("${{ github.ref }}")
+                        && step["env"]["DEFAULT_BRANCH"].as_str() == Some("${{ github.event.repository.default_branch }}")
+                        && step["run"].as_str().is_some_and(|run| run.trim() == "revision=$(\"$POLICY\" candidate-source --revision \"$CANDIDATE_SHA\" --controller-ref \"$CONTROLLER_REF\" --default-branch \"$DEFAULT_BRANCH\")\nprintf 'source_sha=%s\\n' \"$revision\" >> \"$GITHUB_OUTPUT\"")
+                })
+        })
+}
+
+fn candidate_call(job: &Yaml) -> bool {
+    unsuppressed(job)
+        && job["needs"].as_str() == Some("source")
+        && job["uses"].as_str().is_some_and(|source| {
+            matches!(
+                source,
+                "$/.github/workflows/tmpl-verify.yml" | "$/.github/workflows/ci-policy-checks.yml"
+            )
+        })
+        && job["with"]["source_sha"].as_str() == Some("${{ needs.source.outputs.source_sha }}")
+        && job["with"]
+            .as_hash()
+            .is_some_and(|inputs| inputs.len() == 1)
+}
+
+fn candidate_aggregate(job: &Yaml, repository: PolicyRepository) -> bool {
+    job["if"].as_str() == Some("always()")
+        && job["needs"].as_vec().is_some_and(|needs| needs == &vec![Yaml::String("source".into()), Yaml::String("routine".into()), Yaml::String("proofs".into())])
+        && (job["continue-on-error"].is_badvalue() || job["continue-on-error"] == Yaml::Boolean(false))
+        && job["steps"].as_vec().is_some_and(|steps| {
+            steps.iter().any(|step| policy_step(step, repository)) && steps.iter().any(|step| {
+                unsuppressed(step)
+                    && step["env"]["POLICY"].as_str() == Some("${{ steps.policy.outputs.executable }}")
+                    && step["env"]["RESULTS"].as_str() == Some("${{ toJSON(needs) }}")
+                    && step["env"]["CANDIDATE_SHA"].as_str() == Some("${{ needs.source.outputs.source_sha }}")
+                    && step["run"].as_str() == Some("\"$POLICY\" candidate-gate --revision \"$CANDIDATE_SHA\" --needs \"$RESULTS\"")
+            })
+        })
+}
+
+fn checkout_bound(job: &Yaml, revision: &str, history: bool) -> bool {
+    job["steps"].as_vec().is_some_and(|steps| {
+        let checkouts: Vec<_> = steps
+            .iter()
+            .filter(|step| {
+                step["uses"]
+                    .as_str()
+                    .is_some_and(|source| source.starts_with("actions/checkout@"))
+            })
+            .collect();
+        checkouts.len() == 1
+            && unsuppressed(checkouts[0])
+            && checkouts[0]["with"]["ref"].as_str() == Some(revision)
+            && (!history || checkouts[0]["with"]["fetch-depth"] == Yaml::Integer(0))
+    })
+}
+
+fn workflow(files: &Files, name: &str) -> Result<Yaml> {
+    let source = files
+        .get(&format!(".github/workflows/{name}"))
+        .context("candidate verification workflow is missing")?;
+    let mut documents = YamlLoader::load_from_str(std::str::from_utf8(&source.bytes)?)?;
+    ensure!(
+        documents.len() == 1,
+        "candidate workflow must have one document"
+    );
+    Ok(documents.remove(0))
+}
+
+fn candidate_graph(files: &Files, contract: &Contract, repository: PolicyRepository) -> Result<()> {
+    let controller = workflow(files, "candidate-verification.yml")?;
+    ensure!(
+        controller["on"]
+            .as_hash()
+            .is_some_and(|events| events.len() == 1
+                && events.contains_key(&Yaml::String("workflow_dispatch".into())))
+            && controller["jobs"]
+                .as_hash()
+                .is_some_and(|jobs| jobs.len() == CANDIDATE_CONTROLLER_JOB_COUNT)
+            && candidate_source_job(&controller["jobs"]["source"], repository)
+            && candidate_call(&controller["jobs"]["routine"])
+            && controller["jobs"]["routine"]["uses"].as_str()
+                == Some("$/.github/workflows/tmpl-verify.yml")
+            && candidate_call(&controller["jobs"]["proofs"])
+            && controller["jobs"]["proofs"]["uses"].as_str()
+                == Some("$/.github/workflows/ci-policy-checks.yml")
+            && candidate_aggregate(&controller["jobs"]["qualified"], repository),
+        "candidate controller must require complete exact-source qualification"
+    );
+    for (name, summary, revision) in [
+        (
+            "tmpl-verify.yml",
+            "required",
+            "${{ inputs.source_sha || github.sha }}",
+        ),
+        (
+            "ci-policy-checks.yml",
+            "verified",
+            "${{ inputs.source_sha }}",
+        ),
+    ] {
+        let document = workflow(files, name)?;
+        ensure!(
+            document["on"]["workflow_call"]["inputs"]["source_sha"]["required"]
+                == Yaml::Boolean(true)
+                && document["on"]["workflow_call"]["outputs"]["source_sha"]["value"].as_str()
+                    == Some(format!("${{{{ jobs.{summary}.outputs.source_sha }}}}").as_str())
+                && document["jobs"][summary]["outputs"]["source_sha"].as_str() == Some(revision)
+                && aggregate_valid(&document["jobs"][summary], repository),
+            "candidate workflow must export its successful complete summary"
+        );
+        let required: BTreeSet<_> = document["jobs"][summary]["needs"]
+            .as_vec()
+            .context("candidate summary must enumerate its required jobs")?
+            .iter()
+            .filter_map(Yaml::as_str)
+            .collect();
+        for binding in contract
+            .ci
+            .iter()
+            .filter(|binding| binding.workflow == name)
+        {
+            ensure!(
+                required.contains(binding.job.as_str())
+                    && checkout_bound(&document["jobs"][binding.job.as_str()], revision, false),
+                "candidate summary must require every exact-source check job"
+            );
+        }
+    }
+    let routine = workflow(files, "tmpl-verify.yml")?;
+    ensure!(
+        routine["jobs"]["policy"]["uses"].as_str() == Some("$/.github/workflows/common-policy.yml")
+            && routine["jobs"]["policy"]["with"]["source_sha"].as_str()
+                == Some("${{ inputs.source_sha || github.sha }}"),
+        "candidate policy must inspect the same source"
+    );
+    let policy = workflow(files, "common-policy.yml")?;
+    ensure!(
+        checkout_bound(
+            &policy["jobs"]["policy"],
+            "${{ inputs.source_sha || github.sha }}",
+            false
+        ),
+        "candidate policy checkout must use the same source"
+    );
+    Ok(())
 }
 
 fn runners(job: &Yaml) -> Result<BTreeSet<String>> {
@@ -1047,12 +1428,13 @@ fn identity(check: &Check, files: &Files, tools: &[u8]) -> Result<String> {
     Ok(hash_parts(parts))
 }
 
-fn execute(root: &Path, check: &Check, program: &Path, target: &Path) -> Result<()> {
-    let jobs = match std::env::var("CARGO_BUILD_JOBS") {
-        Ok(value) => value.parse::<std::num::NonZeroU32>()?,
-        Err(std::env::VarError::NotPresent) => std::num::NonZeroU32::new(2).unwrap(),
-        Err(error) => return Err(error.into()),
-    };
+fn execute(
+    root: &Path,
+    check: &Check,
+    program: &Path,
+    target: &Path,
+    jobs: std::num::NonZeroU32,
+) -> Result<()> {
     let mut command = private_command("mise", root);
     command
         .env_clear()
@@ -1064,7 +1446,7 @@ fn execute(root: &Path, check: &Check, program: &Path, target: &Path) -> Result<
         .args(&check.command[1..])
         .env("MISE_TRUSTED_CONFIG_PATHS", root)
         .env("MISE_AUTO_INSTALL", "false")
-        .env("CARGO_BUILD_JOBS", compiler_jobs(jobs).to_string())
+        .env("CARGO_BUILD_JOBS", jobs.to_string())
         .env("CARGO_TARGET_DIR", target)
         .stdin(Stdio::null());
     let mut wrapped = CommandWrap::from(command);
@@ -1151,16 +1533,26 @@ fn evaluate(
     suite: &str,
     cache: &Path,
     target: &Path,
+    repository: PolicyRepository,
 ) -> Result<()> {
+    let requested = match std::env::var("CARGO_BUILD_JOBS") {
+        Ok(value) => value
+            .parse::<u32>()
+            .context("CARGO_BUILD_JOBS must be a positive integer")?,
+        Err(std::env::VarError::NotPresent) => 2,
+        Err(error) => return Err(error).context("CARGO_BUILD_JOBS must be a positive integer"),
+    };
+    let jobs = compiler_jobs(requested).context("CARGO_BUILD_JOBS must be greater than zero")?;
     let declared = files.contains_key(CONTRACT);
     let contract = match files.get(CONTRACT) {
         Some(source) => serde_json::from_value(crate::json::parse(&source.bytes)?)?,
         None => discovery::discover(root, files)?,
     };
-    if validate(&contract, files, declared)? {
-        entrypoint(root)?;
+    let recipes = validate(&contract, files, declared, repository)?;
+    if recipes.check || recipes.candidate {
+        entrypoint(root, recipes)?;
     }
-    let selected = if suite == "local" {
+    let binding = if suite == "local" {
         None
     } else {
         Some(
@@ -1168,18 +1560,18 @@ fn evaluate(
                 .ci
                 .iter()
                 .find(|ci| format!("{}::{}", ci.workflow, ci.job) == suite)
-                .context("unknown CI check suite")?
-                .checks,
+                .context("unknown CI check suite")?,
         )
     };
     ensure!(
-        selected.is_none() || phase == Phase::Development,
-        "CI suites require the complete verification phase"
+        binding.is_none_or(|binding| phase == binding.phase),
+        "CI suite requires its declared verification phase"
     );
+    let selected = binding.map(|binding| &binding.checks);
     let mut budget = Budget::new(phase);
     for check in &contract.checks {
         if selected.is_none_or(|ids| ids.contains(&check.id))
-            && (phase == Phase::Development || check.phase == Phase::Commit)
+            && phase.includes(check.phase)
             && check
                 .platforms
                 .iter()
@@ -1244,7 +1636,7 @@ fn evaluate(
             }
             Decision::Run => {
                 applicable += 1;
-                execute(root, check, &program, target)?;
+                execute(root, check, &program, target, jobs)?;
                 ensure!(
                     working_files(root, true)? == *files,
                     "project source changed during verification"
@@ -1283,7 +1675,9 @@ fn evaluate(
 
 #[cfg(kani)]
 mod proofs {
-    use super::{PUBLIC_POLICY_ACTION, SELF_POLICY_ACTION, policy_action};
+    use super::{PUBLIC_POLICY_ACTION, PolicyRepository, SELF_POLICY_ACTION, policy_action};
+
+    const ORIGIN_PROOF_BYTES: usize = 64;
 
     #[kani::proof]
     #[kani::unwind(96)]
@@ -1295,7 +1689,39 @@ mod proofs {
         kani::assume(usize::from(position) < input.len());
         let position = usize::from(position);
         let reference = &input[..usize::from(length)];
-        let accepted = policy_action(reference);
+        let origin_bytes: [u8; ORIGIN_PROOF_BYTES] = kani::any();
+        let origin_length: u8 = kani::any();
+        kani::assume(usize::from(origin_length) <= origin_bytes.len());
+        let missing: bool = kani::any();
+        let origin = if missing {
+            None
+        } else {
+            Some(&origin_bytes[..usize::from(origin_length)])
+        };
+        let repository = PolicyRepository::from_origin(origin);
+        assert_eq!(
+            repository == PolicyRepository::ProjectTemplate,
+            matches!(
+                origin,
+                Some(
+                    b"https://github.com/P4suta/project-template"
+                        | b"https://github.com/P4suta/project-template.git"
+                        | b"git@github.com:P4suta/project-template"
+                        | b"git@github.com:P4suta/project-template.git"
+                        | b"ssh://git@github.com/P4suta/project-template"
+                        | b"ssh://git@github.com/P4suta/project-template.git"
+                )
+            )
+        );
+        let accepted = policy_action(reference, repository);
+        if reference == SELF_POLICY_ACTION {
+            assert_eq!(accepted, repository == PolicyRepository::ProjectTemplate);
+        } else {
+            assert_eq!(
+                policy_action(reference, PolicyRepository::ProjectTemplate),
+                policy_action(reference, PolicyRepository::Consumer)
+            );
+        }
         if accepted && reference != SELF_POLICY_ACTION {
             assert_eq!(reference.len(), PUBLIC_POLICY_ACTION.len() + 40);
             if position < PUBLIC_POLICY_ACTION.len() {
@@ -1309,12 +1735,21 @@ mod proofs {
                 );
             }
         }
-        assert!(policy_action(SELF_POLICY_ACTION));
+        assert!(policy_action(
+            SELF_POLICY_ACTION,
+            PolicyRepository::ProjectTemplate
+        ));
         assert!(!policy_action(
-            b"P4suta/project-template/.github/actions/ci-policy@main"
+            SELF_POLICY_ACTION,
+            PolicyRepository::Consumer
+        ));
+        assert!(!policy_action(
+            b"P4suta/project-template/.github/actions/ci-policy@main",
+            repository
         ));
         kani::cover!(accepted && reference != SELF_POLICY_ACTION);
-        kani::cover!(reference == SELF_POLICY_ACTION);
+        kani::cover!(reference == SELF_POLICY_ACTION && accepted);
+        kani::cover!(reference == SELF_POLICY_ACTION && !accepted);
         kani::cover!(!accepted);
     }
 }
@@ -1326,6 +1761,10 @@ pub fn run(
     suite: &str,
     cache: Option<&Path>,
 ) -> Result<()> {
+    ensure!(
+        phase != Phase::Candidate || matches!(scope, Scope::Revision(_)),
+        "candidate checks require revision scope"
+    );
     snapshot(root, scope, phase, suite, cache, |_| Ok(()))
 }
 
@@ -1364,6 +1803,17 @@ fn snapshot(
         ))? == root,
         "project root must be the Git repository root"
     );
+    // The owner's original local Git configuration supplies this identity, without network authentication.
+    let origin = git(
+        &root,
+        &["config", "--local", "--get-all", "remote.origin.url"],
+        false,
+    )
+    .ok();
+    let repository = PolicyRepository::from_origin(origin.as_deref().map(|value| {
+        let value = value.strip_suffix(b"\n").unwrap_or(value);
+        value.strip_suffix(b"\r").unwrap_or(value)
+    }));
     let owner = match scope {
         Scope::Working => Some(working_files(&root, false)?),
         Scope::Index | Scope::Revision(_) => None,
@@ -1541,7 +1991,9 @@ fn snapshot(
             }
         })
         .unwrap_or_else(|| cache.join("targets"));
-    evaluate(&candidate, &files, phase, suite, &cache, &target)?;
+    evaluate(
+        &candidate, &files, phase, suite, &cache, &target, repository,
+    )?;
     after(&candidate)?;
     ensure!(
         working_files(&candidate, true)? == files,

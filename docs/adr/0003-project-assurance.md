@@ -48,8 +48,15 @@ Retain hosted permissions and release protections; ordinary project verification
 ## Assurance and trust
 
 Kani imports production decisions for phase selection, exact evidence reuse, cumulative budgets, complete coverage, deadline outcomes, and permitted Cargo operations.
-It checks that a shared aggregate accepts only the policy repository's own Action or its exact public namespace pinned to an immutable commit, for arbitrary reference bytes up to 91 bytes.
-It also proves that automatic compilation cannot exceed either the owner's positive job limit or two jobs.
+The `policy_action` harness covers the declaring repository identity and reference bytes up to 91 bytes.
+Self references require the policy repository identity, while consumer references require the exact public namespace pinned to an immutable commit.
+The same repository restriction applies to reusable policy workflows.
+The native adapter reads the original checkout's Git origin before creating a private snapshot and accepts only the known GitHub URLs for P4suta/project-template.
+Missing or foreign origins never establish that identity.
+Git configuration is a trusted local input, and URL recognition doesn't authenticate repository ownership over the network.
+The compiler harness covers zero rejection and preserves both the owner's positive job limit and the maximum of two jobs.
+The runtime validates the request before either executing a check or reusing its success receipt.
+The changed harnesses need a passing candidate campaign before supplying a release verdict.
 Both installation and verification identities use the same hexadecimal encoder; Kani proves that its production byte conversion preserves every byte, and native known-answer tests preserve SHA-256 identities across dependency updates.
 It also checks the required workflow scope and each discovered language's compiler and behavioral operation selection.
 Required proof inventories include reachable covers and a deliberately false claim that must fail with the expected assertion.

@@ -19,6 +19,16 @@ struct Cli {
 }
 
 enum Action {
+    CandidateSource {
+        root: PathBuf,
+        revision: String,
+        controller_ref: String,
+        default_branch: String,
+    },
+    CandidateGate {
+        revision: String,
+        needs: String,
+    },
     ProjectCheck {
         root: PathBuf,
         phase: ci_policy::project::protocol::Phase,
@@ -125,7 +135,7 @@ impl Cli {
                         Arg::new("phase")
                             .long("phase")
                             .default_value("development")
-                            .value_parser(["commit", "development"]),
+                            .value_parser(["commit", "development", "candidate"]),
                     )
                     .arg(Arg::new("suite").long("suite").default_value("local"))
                     .arg(
@@ -140,6 +150,26 @@ impl Cli {
                             .conflicts_with("revision"),
                     )
                     .arg(Arg::new("revision").long("revision")),
+            )
+            .subcommand(
+                Command::new("candidate-source")
+                    .arg(root_argument())
+                    .arg(Arg::new("revision").long("revision").required(true))
+                    .arg(
+                        Arg::new("controller-ref")
+                            .long("controller-ref")
+                            .required(true),
+                    )
+                    .arg(
+                        Arg::new("default-branch")
+                            .long("default-branch")
+                            .required(true),
+                    ),
+            )
+            .subcommand(
+                Command::new("candidate-gate")
+                    .arg(Arg::new("revision").long("revision").required(true))
+                    .arg(Arg::new("needs").long("needs").required(true)),
             )
             .subcommand(
                 Command::new("template-patch")
@@ -269,15 +299,26 @@ impl Cli {
         let command = match name {
             "project-check" => Action::ProjectCheck {
                 root: get_path("root")?,
-                phase: if get_string("phase")? == "commit" {
-                    ci_policy::project::protocol::Phase::Commit
-                } else {
-                    ci_policy::project::protocol::Phase::Development
+                phase: match get_string("phase")?.as_str() {
+                    "commit" => ci_policy::project::protocol::Phase::Commit,
+                    "development" => ci_policy::project::protocol::Phase::Development,
+                    "candidate" => ci_policy::project::protocol::Phase::Candidate,
+                    _ => anyhow::bail!("unsupported project phase"),
                 },
                 suite: get_string("suite")?,
                 cache: matches.get_one::<PathBuf>("cache-directory").cloned(),
                 index: matches.get_flag("index"),
                 revision: matches.get_one::<String>("revision").cloned(),
+            },
+            "candidate-source" => Action::CandidateSource {
+                root: get_path("root")?,
+                revision: get_string("revision")?,
+                controller_ref: get_string("controller-ref")?,
+                default_branch: get_string("default-branch")?,
+            },
+            "candidate-gate" => Action::CandidateGate {
+                revision: get_string("revision")?,
+                needs: get_string("needs")?,
             },
             "template-patch" => Action::TemplatePatch {
                 root: get_path("root")?,
@@ -405,6 +446,26 @@ struct Job {
 
 fn run() -> Result<()> {
     match Cli::parse()?.command {
+        Action::CandidateSource {
+            root,
+            revision,
+            controller_ref,
+            default_branch,
+        } => {
+            println!(
+                "{}",
+                ci_policy::project::candidate_source(
+                    &root,
+                    &revision,
+                    &controller_ref,
+                    &default_branch
+                )?
+            );
+        }
+        Action::CandidateGate { revision, needs } => {
+            ci_policy::project::qualify_candidate(&revision, &needs)?;
+            println!("Candidate {revision} qualified");
+        }
         Action::ProjectCheck {
             root,
             phase,

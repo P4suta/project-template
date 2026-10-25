@@ -1,69 +1,49 @@
 # Contributing
 
-Thank you for considering a contribution to project-template. The notes
-below cover the parts that are easy to get wrong on a first pass.
+The repository contains the template engine, reusable layers, and shared verification policy.
+Keep changes focused and explain the resulting behavior in the pull request.
 
-## Scope of this repository
+## Development
 
-This repository is the template *and* the engine that generates from it.
-Two distinct kinds of change live here:
+Install the pinned tools with `just bootstrap` and register the Git hooks with `just hooks`.
+The maintained commands use mise and native tools.
+Just recipes require Bash.
 
-- **Engine changes** under `.template/tmpl/` — modifying the Rust crate
-  that resolves the layer DAG, renders templates, and writes them out.
-- **Layer changes** under `.template/layers/<name>/` — adding a layer,
-  adjusting an existing layer's templates or metadata, or fixing the
-  capability graph.
+Run `mise x -- just check` for ordinary verification.
+The gate checks formatting, spelling, Clippy, tests, dependencies, and template generation.
+Coverage runs on Linux through `just coverage` and hosted CI.
+The commit hook runs `just check-staged`, and the push hook runs the ordinary gate.
 
-Engine changes need a snapshot test and (where the change touches the
-DAG, manifest, render, state, or merge modules) a property test.
-Layer changes need at minimum an `insta` snapshot of the rendered output
-and an entry in the layer's own `README.md`.
+Use `just fmt` to format Rust, `just test` for engine tests, and `just verify-template` to validate generation.
+The commands and their pinned tools are defined in `Justfile`, `mise.toml`, and `.ci/verification.json`.
 
-## Development environment
+## Changes
 
-The Day-1 expectation is Docker-only execution: every cargo / mdbook /
-node invocation is wrapped in a `just` task that proxies into the dev
-container. Direct host-toolchain calls are intentionally not part of the
-documented workflow.
+Engine code lives under `.template/tmpl/`.
+Engine behavior changes need snapshot tests and property tests for affected DAG, manifest, render, state, or merge behavior.
 
-```sh
-just bootstrap        # mise install + lefthook install
-just lint             # fmt-check + clippy + typos + strict-code grep
-just test             # cargo nextest run
-just coverage         # cargo llvm-cov, gate at the configured threshold
-just verify-template  # tmpl verify (manifest + DAG soundness)
-```
+Layers live under `.template/layers/<name>/`.
+A layer change needs a rendered snapshot and updated layer documentation.
+Run `just verify-template` after changing a layer or its capability relationships.
 
-`just hooks` installs the lefthook pre-commit / commit-msg / pre-push
-hooks. Anything that would fail in CI fails locally first.
+The shared policy lives under `tools/ci-policy/`.
+Run the ordinary gate after changing its installation, command validation, or workflow contracts.
 
-## Commit messages
+## Candidate verification
 
-[Conventional Commits](https://www.conventionalcommits.org/). The
-commit-msg hook enforces the type prefix; scope is optional. Bump types:
-`feat` / `fix` / `docs` / `style` / `refactor` / `perf` / `test` /
-`build` / `ci` / `chore` / `revert`.
+Production proofs run through the manual Candidate verification workflow from the default branch.
+Supply a complete commit ID containing the current default branch.
+Qualification requires successful ordinary and proof results for that same commit.
+An ordinary gate result doesn't establish a proof result.
+The workflow doesn't publish artifacts.
 
 ## Pull requests
 
-- Branch off `main`, push, open a PR.
-- Squash-merge by default. The PR title becomes the squashed commit
-  message — write it as a Conventional Commit subject.
-- CI must be green; reviewer approval required.
-
-## Adding a layer
-
-1. Create `.template/layers/<name>/layer.toml` declaring `name`,
-   `description`, `requires`, `provides`, `conflictsWith`.
-2. Drop your tera/jinja templates under `.template/layers/<name>/files/`.
-3. Add a snapshot test under `.template/tmpl/tests/golden/<name>.rs`
-   (use `insta` and a fixture context).
-4. Run `just verify-template` to confirm the layer slots into the DAG
-   without conflicts.
-5. Document the layer in this repository's `README.md` catalogue table
-   and in the layer's own `README.md`.
+Use [Conventional Commits](https://www.conventionalcommits.org/) for commit subjects and pull request titles.
+The pull request title becomes the squash commit subject.
+Describe the change, relevant tests, and remaining verification limits.
+Required checks and supported review findings must be resolved before merge.
 
 ## License
 
-By contributing you agree that your contribution is dual-licensed under
-Apache-2.0 OR MIT, the same terms as the project itself.
+Contributions are dual-licensed under Apache-2.0 OR MIT.

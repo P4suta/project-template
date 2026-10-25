@@ -20,10 +20,10 @@ jobs:
     # so a maintainer's `gh pr update-branch` on a bot PR cannot flip the guard.
     if: ${{ !endsWith(github.event.pull_request.user.login, '[bot]') }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
       # Lint only the non-merge commits. `committed` flags any merge
       # commit ("Merge branch 'main' …") as "Missing type", so a
       # `gh pr update-branch` merge must never reach it. And `committed`
