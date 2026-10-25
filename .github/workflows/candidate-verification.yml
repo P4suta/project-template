@@ -1,0 +1,66 @@
+name: Candidate verification
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Full candidate commit ID containing the current default branch
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: candidate-verification-${{ inputs.revision }}
+  cancel-in-progress: false
+jobs:
+  source:
+    name: Validate the candidate source
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      source_sha: ${{ steps.source.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+      - id: policy
+        uses: $/.github/actions/ci-policy
+      - id: source
+        name: Bind the complete candidate commit
+        env:
+          POLICY: ${{ steps.policy.outputs.executable }}
+          CANDIDATE_SHA: ${{ inputs.revision }}
+          CONTROLLER_REF: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          revision=$("$POLICY" candidate-source --revision "$CANDIDATE_SHA" --controller-ref "$CONTROLLER_REF" --default-branch "$DEFAULT_BRANCH")
+          printf 'source_sha=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+  routine:
+    name: Verify ordinary candidate checks
+    needs: source
+    uses: $/.github/workflows/tmpl-verify.yml
+    with:
+      source_sha: ${{ needs.source.outputs.source_sha }}
+  proofs:
+    name: Verify every production proof
+    needs: source
+    uses: $/.github/workflows/ci-policy-checks.yml
+    with:
+      source_sha: ${{ needs.source.outputs.source_sha }}
+  qualified:
+    name: candidate-verified
+    if: always()
+    needs: [source, routine, proofs]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      - id: policy
+        uses: $/.github/actions/ci-policy
+      - name: Require complete results for the exact candidate
+        env:
+          POLICY: ${{ steps.policy.outputs.executable }}
+          RESULTS: ${{ toJSON(needs) }}
+          CANDIDATE_SHA: ${{ needs.source.outputs.source_sha }}
+        run: '"$POLICY" candidate-gate --revision "$CANDIDATE_SHA" --needs "$RESULTS"'

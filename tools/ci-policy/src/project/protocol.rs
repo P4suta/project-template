@@ -1,11 +1,27 @@
 use serde::{Deserialize, Serialize};
 
+pub fn compiler_jobs(requested: u32) -> Option<std::num::NonZeroU32> {
+    std::num::NonZeroU32::new(requested.min(2))
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum Phase {
     Commit,
     Development,
+    Candidate,
+}
+
+impl Phase {
+    pub fn includes(self, required: Self) -> bool {
+        matches!(
+            (self, required),
+            (Self::Candidate, _)
+                | (Self::Development, Self::Commit | Self::Development)
+                | (Self::Commit, Self::Commit)
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -59,7 +75,7 @@ pub fn decide(
     cache: Cache,
     exact_success: bool,
 ) -> Decision {
-    if phase == Phase::Commit && required == Phase::Development {
+    if !phase.includes(required) {
         Decision::NotSelected
     } else if !applicable {
         Decision::OtherPlatform
@@ -73,7 +89,7 @@ pub fn decide(
 pub fn budget_limit(phase: Phase) -> u64 {
     match phase {
         Phase::Commit => 30,
-        Phase::Development => 1800,
+        Phase::Development | Phase::Candidate => 1800,
     }
 }
 
@@ -125,8 +141,23 @@ impl Coverage {
 mod proofs {
     use super::{
         Budget, Cache, Completion, Coverage, Decision, Phase, Progress, budget_limit, budget_valid,
-        decide, progress,
+        compiler_jobs, decide, progress,
     };
+
+    #[kani::proof]
+    fn automatic_compilation_preserves_lower_owner_limits() {
+        let requested: u32 = kani::any();
+        let actual = compiler_jobs(requested);
+        assert_eq!(actual.is_none(), requested == 0);
+        if let Some(actual) = actual {
+            let actual = actual.get();
+            assert!(actual != 0 && actual <= 2 && actual <= requested);
+            assert!(requested != 1 || actual == 1);
+        }
+        kani::cover!(actual.is_none());
+        kani::cover!(actual.is_some_and(|actual| actual.get() == 1));
+        kani::cover!(actual.is_some_and(|actual| actual.get() == 2) && requested > 2);
+    }
 
     #[kani::proof]
     fn reuse_requires_applicable_exact_success() {
@@ -138,9 +169,9 @@ mod proofs {
         let decision = decide(phase, required, applicable, cache, exact_success);
         if decision == Decision::Reuse {
             assert!(applicable && cache == Cache::Content && exact_success);
-            assert!(phase == Phase::Development || required == Phase::Commit);
+            assert!(phase.includes(required));
         }
-        if applicable && (phase == Phase::Development || required == Phase::Commit) {
+        if applicable && phase.includes(required) {
             assert_eq!(
                 decision == Decision::Reuse,
                 cache == Cache::Content && exact_success
@@ -151,6 +182,22 @@ mod proofs {
         kani::cover!(decision == Decision::Run);
         kani::cover!(decision == Decision::OtherPlatform);
         kani::cover!(decision == Decision::NotSelected);
+    }
+
+    #[kani::proof]
+    fn candidate_proofs_require_the_candidate_phase() {
+        let phase: Phase = kani::any();
+        let applicable: bool = kani::any();
+        let cache: Cache = kani::any();
+        let exact_success: bool = kani::any();
+        let decision = decide(phase, Phase::Candidate, applicable, cache, exact_success);
+        assert_eq!(decision == Decision::NotSelected, phase != Phase::Candidate);
+        if phase == Phase::Candidate {
+            assert_eq!(decision == Decision::OtherPlatform, !applicable);
+        }
+        kani::cover!(phase == Phase::Candidate && decision == Decision::Run);
+        kani::cover!(phase == Phase::Development && decision == Decision::NotSelected);
+        kani::cover!(phase == Phase::Commit && decision == Decision::NotSelected);
     }
 
     #[kani::proof]

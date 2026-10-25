@@ -13,9 +13,11 @@ use crate::{Conclusion, gate};
 mod source;
 pub use source::validate_source;
 
-pub const HARNESSES: [&str; 25] = [
+pub const HARNESSES: [&str; 28] = [
     "hex::proofs::hexadecimal_identity_preserves_every_byte",
     "hex::proofs::hexadecimal_encoding_preserves_the_complete_digest",
+    "project::protocol::proofs::automatic_compilation_preserves_lower_owner_limits",
+    "project::runtime::proofs::shared_aggregate_requires_the_policy_namespace_and_immutable_revision",
     "tools::proofs::every_tool_activates_its_complete_dependency_set",
     "verification::proofs::every_workflow_and_action_remains_required_on_push",
     "project::runtime::discovery::proofs::discovered_languages_have_supported_compiler_and_behavior_checks",
@@ -24,6 +26,7 @@ pub const HARNESSES: [&str; 25] = [
     "proof::proofs::library_namespaces_cannot_admit_project_functions",
     "proof::source::proofs::macro_recognition_requires_bang_and_delimited_arguments",
     "project::protocol::proofs::reuse_requires_applicable_exact_success",
+    "project::protocol::proofs::candidate_proofs_require_the_candidate_phase",
     "project::protocol::proofs::uncovered_or_empty_ci_cannot_complete",
     "project::protocol::proofs::automatic_checks_are_bounded_by_their_phase",
     "project::protocol::proofs::cumulative_budget_cannot_overflow_or_expand",

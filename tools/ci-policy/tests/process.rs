@@ -11,7 +11,8 @@ fn an_unavailable_required_tool_cannot_pass() {
 #[test]
 fn the_real_child_exit_status_controls_the_gate() {
     let binary = env!("CARGO_BIN_EXE_ci-policy");
-    assert!(execute(Command::new(binary).arg("--help"), None).is_ok());
+    let outcome = execute(Command::new(binary).arg("--help"), None);
+    assert!(outcome.is_ok(), "{outcome:?}");
     assert!(
         execute(
             Command::new(binary).args(["gate", "--needs", "{}", "--require", "check"]),

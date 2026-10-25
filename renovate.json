@@ -17,7 +17,7 @@
       "managerFilePatterns": [
         "/^\\.github\\/(?:actions\\/ci-policy\\/action|workflows\\/(?:ci-policy-checks|tmpl-verify))\\.yml$/",
         "/^\\.ci\\/verification\\.json$/",
-        "/^\\.ci\\/ci-policy\\/(?:tests\\/project\\.rs|src\\/project\\/runtime\\/discovery\\.rs)$/",
+        "/^tools\\/ci-policy\\/(?:tests\\/project\\.rs|src\\/project\\/runtime\\/discovery\\.rs)$/",
         "/^Justfile$/"
       ],
       "matchStrings": [
@@ -35,7 +35,7 @@
       "managerFilePatterns": [
         "/^\\.github\\/workflows\\/(?:ci-policy-checks|tmpl-verify)\\.yml$/",
         "/^\\.ci\\/verification\\.json$/",
-        "/^\\.ci\\/ci-policy\\/src\\/project\\/runtime\\.rs$/"
+        "/^tools\\/ci-policy\\/src\\/project\\/runtime\\.rs$/"
       ],
       "matchStrings": ["just@(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
       "depNameTemplate": "casey/just",
@@ -46,7 +46,7 @@
       "managerFilePatterns": [
         "/^\\.github\\/workflows\\/tmpl-verify\\.yml$/",
         "/^\\.ci\\/verification\\.json$/",
-        "/^\\.ci\\/ci-policy\\/tools\\.json$/"
+        "/^tools\\/ci-policy\\/tools\\.json$/"
       ],
       "matchStrings": [
         "typos@(?<currentValue>\\d+\\.\\d+\\.\\d+)",
@@ -60,7 +60,7 @@
       "managerFilePatterns": [
         "/^\\.github\\/workflows\\/(?:ci-policy-checks|tmpl-verify)\\.yml$/",
         "/^\\.ci\\/verification\\.json$/",
-        "/^\\.ci\\/ci-policy\\/tests\\/project\\.rs$/"
+        "/^tools\\/ci-policy\\/tests\\/project\\.rs$/"
       ],
       "matchStrings": [
         "cargo:(?<depName>[a-z][a-z0-9-]*)@(?<currentValue>\\d+\\.\\d+\\.\\d+)",

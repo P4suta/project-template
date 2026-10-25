@@ -10,7 +10,7 @@ ci-policy verify-index
 ci-policy pre-push origin
 ci-policy check .
 ci-policy gate --needs "$RESULTS" --require-json '["test", "proofs"]'
-ci-policy prove --manifest-path .ci/ci-policy/Cargo.toml
+ci-policy prove --manifest-path tools/ci-policy/Cargo.toml
 ci-policy prove-source --source path/to/production.rs --require-json '["production::proofs::contract"]' --counterexample production::proofs::false_claim
 ```
 
