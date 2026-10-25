@@ -6,6 +6,18 @@ use serde::{Deserialize, Serialize};
 pub enum Phase {
     Commit,
     Development,
+    Candidate,
+}
+
+impl Phase {
+    pub fn includes(self, required: Self) -> bool {
+        matches!(
+            (self, required),
+            (Self::Candidate, _)
+                | (Self::Development, Self::Commit | Self::Development)
+                | (Self::Commit, Self::Commit)
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -59,7 +71,7 @@ pub fn decide(
     cache: Cache,
     exact_success: bool,
 ) -> Decision {
-    if phase == Phase::Commit && required == Phase::Development {
+    if !phase.includes(required) {
         Decision::NotSelected
     } else if !applicable {
         Decision::OtherPlatform
@@ -73,7 +85,7 @@ pub fn decide(
 pub fn budget_limit(phase: Phase) -> u64 {
     match phase {
         Phase::Commit => 30,
-        Phase::Development => 1800,
+        Phase::Development | Phase::Candidate => 1800,
     }
 }
 
@@ -138,9 +150,9 @@ mod proofs {
         let decision = decide(phase, required, applicable, cache, exact_success);
         if decision == Decision::Reuse {
             assert!(applicable && cache == Cache::Content && exact_success);
-            assert!(phase == Phase::Development || required == Phase::Commit);
+            assert!(phase.includes(required));
         }
-        if applicable && (phase == Phase::Development || required == Phase::Commit) {
+        if applicable && phase.includes(required) {
             assert_eq!(
                 decision == Decision::Reuse,
                 cache == Cache::Content && exact_success
@@ -151,6 +163,22 @@ mod proofs {
         kani::cover!(decision == Decision::Run);
         kani::cover!(decision == Decision::OtherPlatform);
         kani::cover!(decision == Decision::NotSelected);
+    }
+
+    #[kani::proof]
+    fn candidate_proofs_require_the_candidate_phase() {
+        let phase: Phase = kani::any();
+        let applicable: bool = kani::any();
+        let cache: Cache = kani::any();
+        let exact_success: bool = kani::any();
+        let decision = decide(phase, Phase::Candidate, applicable, cache, exact_success);
+        assert_eq!(decision == Decision::NotSelected, phase != Phase::Candidate);
+        if phase == Phase::Candidate {
+            assert_eq!(decision == Decision::OtherPlatform, !applicable);
+        }
+        kani::cover!(phase == Phase::Candidate && decision == Decision::Run);
+        kani::cover!(phase == Phase::Development && decision == Decision::NotSelected);
+        kani::cover!(phase == Phase::Commit && decision == Decision::NotSelected);
     }
 
     #[kani::proof]

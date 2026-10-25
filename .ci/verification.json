@@ -298,7 +298,7 @@
     },
     {
       "id": "policy-proofs",
-      "phase": "development",
+      "phase": "candidate",
       "platforms": [
         "linux",
         "macos"
@@ -322,7 +322,7 @@
     },
     {
       "id": "engine-proofs",
-      "phase": "development",
+      "phase": "candidate",
       "platforms": [
         "linux",
         "macos"
@@ -350,7 +350,7 @@
     },
     {
       "id": "engine-path-proofs",
-      "phase": "development",
+      "phase": "candidate",
       "platforms": [
         "linux",
         "macos"
@@ -381,6 +381,7 @@
     {
       "workflow": "ci-policy-checks.yml",
       "job": "proofs",
+      "phase": "candidate",
       "checks": [
         "policy-proofs",
         "engine-proofs",
@@ -433,9 +434,24 @@
       "capability": "policy"
     },
     {
-      "workflow": "tmpl-verify.yml",
-      "job": "policy-code",
-      "capability": "policy"
+      "workflow": "candidate-verification.yml",
+      "job": "source",
+      "capability": "candidate_source"
+    },
+    {
+      "workflow": "candidate-verification.yml",
+      "job": "routine",
+      "capability": "candidate_call"
+    },
+    {
+      "workflow": "candidate-verification.yml",
+      "job": "proofs",
+      "capability": "candidate_call"
+    },
+    {
+      "workflow": "candidate-verification.yml",
+      "job": "qualified",
+      "capability": "candidate_aggregate"
     },
     {
       "workflow": "tmpl-verify.yml",

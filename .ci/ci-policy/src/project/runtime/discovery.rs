@@ -307,6 +307,7 @@ pub(super) fn discover(root: &Path, files: &Files) -> Result<Contract> {
                     .to_owned(),
                 job: id.to_owned(),
                 checks: ids,
+                phase: Phase::Development,
             });
         }
     }

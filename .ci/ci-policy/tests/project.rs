@@ -76,6 +76,321 @@ fn accepted(output: &std::process::Output) {
     );
 }
 
+fn candidate_source(
+    repository: &Repository,
+    revision: &str,
+    controller: &str,
+) -> std::process::Output {
+    repository
+        .command(env!("CARGO_BIN_EXE_ci-policy"))
+        .args(["candidate-source", "--root"])
+        .arg(repository.path())
+        .args([
+            "--revision",
+            revision,
+            "--controller-ref",
+            controller,
+            "--default-branch",
+            "main",
+        ])
+        .output()
+        .expect("candidate source validation")
+}
+
+#[test]
+fn candidate_source_accepts_exact_commits_from_the_default_branch_controller() {
+    let (repository, _) = fixture();
+    let revision = String::from_utf8(repository.git(&["rev-parse", "HEAD"]))
+        .unwrap()
+        .trim()
+        .to_owned();
+    repository.git(&["update-ref", "refs/remotes/origin/main", &revision]);
+    let output = candidate_source(&repository, &revision, "refs/heads/main");
+    accepted(&output);
+    assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), revision);
+    for invalid in [
+        "main",
+        "1234567",
+        "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+    ] {
+        assert!(
+            !candidate_source(&repository, invalid, "refs/heads/main")
+                .status
+                .success()
+        );
+    }
+    assert!(
+        !candidate_source(&repository, &revision, "refs/heads/topic")
+            .status
+            .success()
+    );
+    repository.write("src/lib.rs", b"pub fn value() -> u8 { 2 }\n");
+    let unrelated = repository.commit(&[]);
+    assert!(
+        !candidate_source(&repository, &unrelated, "refs/heads/main")
+            .status
+            .success()
+    );
+}
+
+#[test]
+fn candidate_phase_refuses_working_tree_and_index_scopes() {
+    let (repository, cache) = fixture();
+    for arguments in [
+        vec!["--phase", "candidate"],
+        vec!["--phase", "candidate", "--index"],
+    ] {
+        let output = invoke(&repository, &cache, &arguments);
+        assert!(!output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stderr)
+                .contains("candidate checks require revision scope")
+        );
+    }
+}
+
+fn qualification(value: &Value, revision: &str) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_ci-policy"))
+        .args([
+            "candidate-gate",
+            "--revision",
+            revision,
+            "--needs",
+            &value.to_string(),
+        ])
+        .output()
+        .expect("candidate qualification")
+}
+
+#[test]
+fn candidate_qualification_requires_every_role_to_succeed_for_one_exact_source() {
+    let revision = "1234567890abcdef1234567890abcdef12345678";
+    let mut value = json!({});
+    for role in ["source", "routine", "proofs"] {
+        value[role] = json!({"result": "success", "outputs": {"source_sha": revision}});
+    }
+    accepted(&qualification(&value, revision));
+    for role in ["source", "routine", "proofs"] {
+        for result in ["failure", "skipped", "cancelled", "unknown"] {
+            let mut invalid = value.clone();
+            invalid[role]["result"] = json!(result);
+            assert!(!qualification(&invalid, revision).status.success());
+        }
+        let mut invalid = value.clone();
+        invalid.as_object_mut().unwrap().remove(role);
+        assert!(!qualification(&invalid, revision).status.success());
+        invalid = value.clone();
+        invalid[role]["outputs"]["source_sha"] = json!("abcdef1234567890abcdef1234567890abcdef12");
+        assert!(!qualification(&invalid, revision).status.success());
+    }
+    assert!(!qualification(&value, "main").status.success());
+    let mut extra = value.clone();
+    extra["unexpected"] = value["source"].clone();
+    assert!(!qualification(&extra, revision).status.success());
+}
+
+fn candidate_fixture() -> (Repository, tempfile::TempDir) {
+    let (repository, cache) = fixture();
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    for workflow in [
+        "tmpl-verify.yml",
+        "ci-policy-checks.yml",
+        "common-policy.yml",
+        "candidate-verification.yml",
+    ] {
+        let path = format!(".github/workflows/{workflow}");
+        let mut source = fs::read_to_string(root.join(&path)).unwrap();
+        if workflow == "ci-policy-checks.yml" {
+            source = source.replace(
+                "os: [ubuntu-latest, macos-latest]",
+                &format!(
+                    "os: [{}-latest]",
+                    if cfg!(target_os = "linux") {
+                        "ubuntu"
+                    } else {
+                        std::env::consts::OS
+                    }
+                ),
+            );
+        }
+        repository.write(&path, source.as_bytes());
+    }
+    repository.git(&["rm", ".github/workflows/ci.yml"]);
+    repository.write("Justfile", &fs::read(root.join("Justfile")).unwrap());
+    let mut value: Value =
+        serde_json::from_slice(&fs::read(root.join(".ci/verification.json")).unwrap()).unwrap();
+    let types = contract()["checks"][0].clone();
+    let mut coverage = types.clone();
+    coverage["id"] = json!("coverage");
+    coverage["platforms"] = json!(["linux"]);
+    let mut proof = types.clone();
+    proof["id"] = json!("proof");
+    proof["phase"] = json!("candidate");
+    value["checks"] = json!([types, coverage, proof]);
+    value["ci"][0]["checks"] = json!(["proof"]);
+    value["ci"][1]["checks"] = json!(["types"]);
+    value["ci"][2]["checks"] = json!(["coverage"]);
+    value["hosted"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|hosted| !matches!(hosted["workflow"].as_str(), Some("init.yml" | "codeql.yml")));
+    repository.write(
+        ".ci/verification.json",
+        &serde_json::to_vec(&value).unwrap(),
+    );
+    (repository, cache)
+}
+
+#[test]
+fn candidate_workflow_rejects_broken_source_paths_and_incomplete_summaries() {
+    let (repository, cache) = candidate_fixture();
+    accepted(&invoke(&repository, &cache, &[]));
+    for (path, original, changed) in [
+        (
+            "candidate-verification.yml",
+            "source_sha: ${{ needs.source.outputs.source_sha }}",
+            "source_sha: ${{ inputs.revision }}",
+        ),
+        (
+            "candidate-verification.yml",
+            "needs: [source, routine, proofs]",
+            "needs: [source, routine]",
+        ),
+        (
+            "candidate-verification.yml",
+            "--controller-ref \"$CONTROLLER_REF\"",
+            "--controller-ref refs/heads/main",
+        ),
+        (
+            "ci-policy-checks.yml",
+            "ref: ${{ inputs.source_sha }}",
+            "ref: ${{ github.sha }}",
+        ),
+        (
+            "ci-policy-checks.yml",
+            "mise x -- just check-candidate \"$CANDIDATE_SHA\"",
+            "mise x -- just check",
+        ),
+        (
+            "ci-policy-checks.yml",
+            "- run: mise x -- just check-candidate",
+            "- env: { CANDIDATE_SHA: 1234567890abcdef1234567890abcdef12345678 }\n        run: mise x -- just check-candidate",
+        ),
+        (
+            "ci-policy-checks.yml",
+            "value: ${{ jobs.verified.outputs.source_sha }}",
+            "value: ${{ inputs.source_sha }}",
+        ),
+        (
+            "tmpl-verify.yml",
+            "needs: [engine, coverage, policy]",
+            "needs: [engine, coverage]",
+        ),
+        (
+            "tmpl-verify.yml",
+            "uses: $/.github/workflows/common-policy.yml",
+            "uses: $/.github/workflows/ci-policy-checks.yml",
+        ),
+        (
+            "common-policy.yml",
+            "ref: ${{ inputs.source_sha || github.sha }}",
+            "ref: ${{ github.sha }}",
+        ),
+    ] {
+        let path = repository.path().join(format!(".github/workflows/{path}"));
+        let source = fs::read_to_string(&path).unwrap();
+        assert!(source.contains(original));
+        fs::write(&path, source.replace(original, changed)).unwrap();
+        assert!(
+            !invoke(&repository, &cache, &[]).status.success(),
+            "accepted {original} -> {changed}"
+        );
+        fs::write(&path, source).unwrap();
+    }
+}
+
+#[test]
+fn candidate_phase_runs_later_checks_only_from_the_exact_committed_source() {
+    let (repository, cache) = candidate_fixture();
+    let path = repository.path().join(".ci/verification.json");
+    let mut value: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    value["checks"][2]["command"] = json!(["rustc", "--invalid-candidate-verification-flag"]);
+    repository.write(
+        ".ci/verification.json",
+        &serde_json::to_vec(&value).unwrap(),
+    );
+    accepted(&invoke(&repository, &cache, &[]));
+    let revision = repository.commit(&[]);
+    let output = invoke(
+        &repository,
+        &cache,
+        &["--phase", "candidate", "--revision", &revision],
+    );
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("invalid-candidate-verification-flag")
+    );
+    let output = invoke(
+        &repository,
+        &cache,
+        &["--suite", "ci-policy-checks.yml::proofs"],
+    );
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("declared verification phase"));
+}
+
+#[test]
+fn candidate_phase_selection_exhausts_the_complete_phase_table() {
+    use ci_policy::project::protocol::{Cache, Decision, Phase, decide};
+    let phases = [Phase::Commit, Phase::Development, Phase::Candidate];
+    for (selected, phase) in phases.iter().enumerate() {
+        for (required, check) in phases.iter().enumerate() {
+            assert_eq!(
+                decide(*phase, *check, true, Cache::Always, false),
+                if selected >= required {
+                    Decision::Run
+                } else {
+                    Decision::NotSelected
+                }
+            );
+        }
+    }
+}
+
+#[test]
+fn candidate_contract_rejects_missing_proofs_platforms_and_revision_entrypoints() {
+    let (repository, cache) = candidate_fixture();
+    let path = repository.path().join(".ci/verification.json");
+    let original = fs::read(&path).unwrap();
+    let value: Value = serde_json::from_slice(&original).unwrap();
+    let mut missing = value.clone();
+    missing["checks"].as_array_mut().unwrap().pop();
+    fs::write(&path, serde_json::to_vec(&missing).unwrap()).unwrap();
+    let output = invoke(&repository, &cache, &[]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unknown check"));
+    let mut incomplete = value;
+    incomplete["checks"][2]["platforms"] = json!(["linux", "macos", "windows"]);
+    fs::write(&path, serde_json::to_vec(&incomplete).unwrap()).unwrap();
+    let output = invoke(&repository, &cache, &[]);
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("every declared project check and platform")
+    );
+    fs::write(&path, original).unwrap();
+    let path = repository.path().join("Justfile");
+    let original = fs::read_to_string(&path).unwrap();
+    fs::write(
+        &path,
+        original.replace("check-candidate revision", "unbound-candidate revision"),
+    )
+    .unwrap();
+    let output = invoke(&repository, &cache, &[]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("exact revision entrypoint"));
+}
+
 #[test]
 fn a_pinned_cargo_extension_runs_the_actual_project_tests() {
     let (repository, cache) = fixture();
