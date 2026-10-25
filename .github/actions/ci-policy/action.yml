@@ -7,7 +7,7 @@ outputs:
 runs:
   using: composite
   steps:
-    - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+    - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5
       with:
         version: 2026.10.17
         install: false
@@ -25,6 +25,7 @@ runs:
     - id: build
       shell: bash
       env:
+        GITHUB_TOKEN: ${{ github.token }}
         POLICY_SOURCE: ${{ github.action_path }}/../../..
         POLICY_OUTPUT: ${{ runner.temp }}/ci-policy
         CARGO_BUILD_JOBS: "2"

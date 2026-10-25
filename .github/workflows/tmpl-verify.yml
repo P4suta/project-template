@@ -38,13 +38,16 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.source_sha || github.sha }}
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5
         with:
           version: 2026.10.17
           install: false
       - run: mise install rust@1.99.1 just@1.59.0 typos@1.51.1 cargo-binstall@1.25.1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Prepare pinned Cargo extensions
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           MISE_CARGO_BINSTALL: "true"
           MISE_CARGO_BINSTALL_ONLY: "true"
         run: mise x rust@1.99.1 cargo-binstall@1.25.1 -- mise install cargo:cargo-nextest@0.9.149 cargo:cargo-deny@0.20.2
@@ -68,14 +71,17 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.source_sha || github.sha }}
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5
         with:
           version: 2026.10.17
           install: false
       - run: mise install rust@1.99.1 just@1.59.0 cargo-binstall@1.25.1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - run: mise x rust@1.99.1 -- rustup component add llvm-tools-preview --toolchain 1.99.1
       - name: Prepare the pinned coverage extension
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           MISE_CARGO_BINSTALL: "true"
           MISE_CARGO_BINSTALL_ONLY: "true"
         run: mise x rust@1.99.1 cargo-binstall@1.25.1 -- mise install cargo:cargo-llvm-cov@0.9.1
