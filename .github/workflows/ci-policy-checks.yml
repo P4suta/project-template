@@ -35,6 +35,8 @@ jobs:
           version: 2026.10.17
           install: false
       - run: mise install rust@1.99.1 just@1.59.0 cargo:kani-verifier@0.68.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Prepare the exact native verifier
         working-directory: ${{ runner.temp }}
         run: mise x rust@1.99.1 cargo:kani-verifier@0.68.0 -- kani setup

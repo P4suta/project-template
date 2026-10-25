@@ -43,8 +43,11 @@ jobs:
           version: 2026.10.17
           install: false
       - run: mise install rust@1.99.1 just@1.59.0 typos@1.51.1 cargo-binstall@1.25.1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Prepare pinned Cargo extensions
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           MISE_CARGO_BINSTALL: "true"
           MISE_CARGO_BINSTALL_ONLY: "true"
         run: mise x rust@1.99.1 cargo-binstall@1.25.1 -- mise install cargo:cargo-nextest@0.9.149 cargo:cargo-deny@0.20.2
@@ -73,9 +76,12 @@ jobs:
           version: 2026.10.17
           install: false
       - run: mise install rust@1.99.1 just@1.59.0 cargo-binstall@1.25.1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - run: mise x rust@1.99.1 -- rustup component add llvm-tools-preview --toolchain 1.99.1
       - name: Prepare the pinned coverage extension
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           MISE_CARGO_BINSTALL: "true"
           MISE_CARGO_BINSTALL_ONLY: "true"
         run: mise x rust@1.99.1 cargo-binstall@1.25.1 -- mise install cargo:cargo-llvm-cov@0.9.1
