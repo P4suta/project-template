@@ -209,7 +209,9 @@
       "inputs": [
         ".template/"
       ],
-      "environment": [],
+      "environment": [
+        "NEXTEST_TEST_THREADS"
+      ],
       "cache": "content"
     },
     {
