@@ -16,6 +16,7 @@ use std::fs;
 use std::path::Path;
 
 use camino::{Utf8Path, Utf8PathBuf};
+use minijinja::{syntax::SyntaxConfig, value::Serde};
 use smol_str::SmolStr;
 use toml_edit::de as toml_de;
 
@@ -82,11 +83,16 @@ impl Layer for FilesystemLayer {
 
     fn render(&self, ctx: &Context) -> Result<Patch, TmplError> {
         let mut env = minijinja::Environment::new();
-        env.set_keep_trailing_newline(true);
+        env.set_syntax(
+            SyntaxConfig::builder()
+                .keep_trailing_newline(true)
+                .build()
+                .expect("default template delimiters are valid"),
+        );
         let mut files = Vec::with_capacity(self.files.len());
         for f in &self.files {
             let content = if f.templated {
-                env.render_str(&f.content, ctx)
+                env.render_str(&f.content, Serde(ctx))
                     .map_err(|source| TmplError::Render {
                         layer: SmolStr::new(self.meta.name.as_str()),
                         file: f.dest.as_path().as_str().to_owned(),
@@ -259,6 +265,47 @@ mod tests {
             .find(|f| f.path.as_path() == "LICENSE")
             .expect("LICENSE must be present");
         assert_eq!(license.content, "Copyright (c) 2026 P4suta\n");
+    }
+
+    #[test]
+    fn fs_layer_render_preserves_serialized_answers_and_trailing_newline() {
+        use crate::ctx::AnswerValue;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let layer_dir = dir.path().join("answers");
+        fs::create_dir_all(layer_dir.join("files")).expect("create files");
+        fs::write(
+            layer_dir.join("layer.toml"),
+            "name = \"answers\"\ndescription = \"Serialized answers\"\n",
+        )
+        .expect("write layer.toml");
+        fs::write(
+            layer_dir.join("files/answers.txt.j2"),
+            "{{ project.name }}|{{ answers.label }}|{% if answers.enabled %}enabled{% endif %}|{{ answers.count }}|{{ answers.items|join(',') }}\n",
+        )
+        .expect("write template");
+        let mut ctx = Context::for_test("acme", "P4suta");
+        ctx.answers.insert(
+            SmolStr::new("label"),
+            AnswerValue::String("quoted \"value\"".to_owned()),
+        );
+        ctx.answers
+            .insert(SmolStr::new("enabled"), AnswerValue::Bool(true));
+        ctx.answers
+            .insert(SmolStr::new("count"), AnswerValue::Int(-2));
+        ctx.answers.insert(
+            SmolStr::new("items"),
+            AnswerValue::List(vec!["first".to_owned(), "second".to_owned()]),
+        );
+
+        let layer = FilesystemLayer::load(&layer_dir).expect("load layer");
+        let patch = layer.render(&ctx).expect("render");
+
+        assert_eq!(patch.files.len(), 1);
+        assert_eq!(
+            patch.files[0].content,
+            "acme|quoted \"value\"|enabled|-2|first,second\n",
+        );
     }
 
     #[test]
