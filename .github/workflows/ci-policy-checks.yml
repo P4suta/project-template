@@ -1,6 +1,13 @@
 name: Production proof assurance
 on:
   workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        required: true
+    outputs:
+      source_sha:
+        value: ${{ jobs.verified.outputs.source_sha }}
 permissions:
   contents: read
 env:
@@ -12,6 +19,8 @@ jobs:
     name: Production proofs (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    env:
+      CANDIDATE_SHA: ${{ inputs.source_sha }}
     strategy:
       fail-fast: false
       matrix:
@@ -20,23 +29,26 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ inputs.source_sha }}
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
         with:
-          version: 2026.10.0
+          version: 2026.10.17
           install: false
-      - run: mise install rust@1.99.0 just@1.58.0 cargo:kani-verifier@0.68.0
+      - run: mise install rust@1.99.1 just@1.59.0 cargo:kani-verifier@0.68.0
       - name: Prepare the exact native verifier
         working-directory: ${{ runner.temp }}
-        run: mise x rust@1.99.0 cargo:kani-verifier@0.68.0 -- kani setup
+        run: mise x rust@1.99.1 cargo:kani-verifier@0.68.0 -- kani setup
       - id: policy
         uses: $/.github/actions/ci-policy
-      - run: mise x -- just check ci-policy-checks.yml::proofs
+      - run: mise x -- just check-candidate "$CANDIDATE_SHA" ci-policy-checks.yml::proofs
   verified:
     name: Production proofs verified
     if: always()
     needs: [proofs]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      source_sha: ${{ inputs.source_sha }}
     steps:
       - id: policy
         uses: $/.github/actions/ci-policy

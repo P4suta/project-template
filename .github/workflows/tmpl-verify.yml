@@ -1,14 +1,20 @@
 name: Engine and policy CI
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        required: true
+    outputs:
+      source_sha:
+        value: ${{ jobs.required.outputs.source_sha }}
 permissions:
   contents: read
 concurrency:
-  group: tmpl-verify-${{ github.ref }}
+  group: tmpl-verify-${{ inputs.source_sha || github.ref }}
   cancel-in-progress: true
 env:
   CARGO_BUILD_JOBS: "2"
@@ -17,8 +23,8 @@ env:
 jobs:
   policy:
     uses: $/.github/workflows/common-policy.yml
-  policy-code:
-    uses: $/.github/workflows/ci-policy-checks.yml
+    with:
+      source_sha: ${{ inputs.source_sha || github.sha }}
   engine:
     name: Native implementation assurance (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -31,22 +37,23 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ inputs.source_sha || github.sha }}
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
         with:
-          version: 2026.10.0
+          version: 2026.10.17
           install: false
-      - run: mise install rust@1.99.0 just@1.58.0 typos@1.50.3 cargo-binstall@1.25.1
+      - run: mise install rust@1.99.1 just@1.59.0 typos@1.51.1 cargo-binstall@1.25.1
       - name: Prepare pinned Cargo extensions
         env:
           MISE_CARGO_BINSTALL: "true"
           MISE_CARGO_BINSTALL_ONLY: "true"
-        run: mise x rust@1.99.0 cargo-binstall@1.25.1 -- mise install cargo:cargo-nextest@0.9.146 cargo:cargo-deny@0.20.2
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        run: mise x rust@1.99.1 cargo-binstall@1.25.1 -- mise install cargo:cargo-nextest@0.9.149 cargo:cargo-deny@0.20.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: |
-            .ci/ci-policy -> ../../target
+            tools/ci-policy -> ../../target
             .template/tmpl -> ../../target
-          cmd-format: mise x rust@1.99.0 -- {0}
+          cmd-format: mise x rust@1.99.1 -- {0}
           cache-bin: false
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - id: policy
@@ -60,23 +67,24 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ inputs.source_sha || github.sha }}
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
         with:
-          version: 2026.10.0
+          version: 2026.10.17
           install: false
-      - run: mise install rust@1.99.0 just@1.58.0 cargo-binstall@1.25.1
-      - run: mise x rust@1.99.0 -- rustup component add llvm-tools-preview --toolchain 1.99.0
+      - run: mise install rust@1.99.1 just@1.59.0 cargo-binstall@1.25.1
+      - run: mise x rust@1.99.1 -- rustup component add llvm-tools-preview --toolchain 1.99.1
       - name: Prepare the pinned coverage extension
         env:
           MISE_CARGO_BINSTALL: "true"
           MISE_CARGO_BINSTALL_ONLY: "true"
-        run: mise x rust@1.99.0 cargo-binstall@1.25.1 -- mise install cargo:cargo-llvm-cov@0.9.1
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        run: mise x rust@1.99.1 cargo-binstall@1.25.1 -- mise install cargo:cargo-llvm-cov@0.9.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: |
-            .ci/ci-policy -> ../../target
+            tools/ci-policy -> ../../target
             .template/tmpl -> ../../target
-          cmd-format: mise x rust@1.99.0 -- {0}
+          cmd-format: mise x rust@1.99.1 -- {0}
           cache-bin: false
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - id: policy
@@ -85,7 +93,9 @@ jobs:
   required:
     name: required
     if: always()
-    needs: [engine, coverage, policy, policy-code]
+    needs: [engine, coverage, policy]
+    outputs:
+      source_sha: ${{ inputs.source_sha || github.sha }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions: {}
@@ -96,4 +106,4 @@ jobs:
         env:
           POLICY: ${{ steps.policy.outputs.executable }}
           RESULTS: ${{ toJSON(needs) }}
-        run: '"$POLICY" gate --needs "$RESULTS" --require-json ''["engine", "coverage", "policy", "policy-code"]'''
+        run: '"$POLICY" gate --needs "$RESULTS" --require-json ''["engine", "coverage", "policy"]'''

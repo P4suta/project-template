@@ -12,8 +12,8 @@
 # matching toolchain. Keep the two pins in sync on every bump.
 
 [tools]
-rust = "1.95.0"
-"cargo:cargo-nextest" = "latest"
-"cargo:cargo-deny" = "latest"
-"cargo:cargo-llvm-cov" = "latest"
-"cargo:bacon" = "latest"  # `just watch`
+rust = "1.99.1"
+"cargo:cargo-nextest" = "0.9.149"
+"cargo:cargo-deny" = "0.20.2"
+"cargo:cargo-llvm-cov" = "0.9.1"
+"cargo:bacon" = "3.26.0"          # `just watch`

@@ -4,6 +4,6 @@
   "pwsh": { "tool": "powershell", "version": "7.6.5" },
   "shellcheck": { "tool": "shellcheck", "version": "0.11.0" },
   "taplo": { "tool": "taplo", "version": "0.10.0" },
-  "typos": { "tool": "typos", "version": "1.50.3" },
+  "typos": { "tool": "typos", "version": "1.51.1" },
   "zizmor": { "tool": "zizmor", "version": "1.30.1" }
 }

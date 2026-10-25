@@ -90,7 +90,7 @@ fn tools(root: &Path, program: &str) -> Result<Vec<String>> {
         .and_then(|entry| entry["version"].as_str());
     let version = match version {
         Some(version) => version,
-        None if backend == "rust" => "1.99.0",
+        None if backend == "rust" => "1.99.1",
         None => anyhow::bail!("the global native profile must prepare {backend}"),
     };
     Ok(vec![format!("{backend}@{version}")])
@@ -307,6 +307,7 @@ pub(super) fn discover(root: &Path, files: &Files) -> Result<Contract> {
                     .to_owned(),
                 job: id.to_owned(),
                 checks: ids,
+                phase: Phase::Development,
             });
         }
     }

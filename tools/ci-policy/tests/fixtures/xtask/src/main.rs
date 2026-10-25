@@ -8,6 +8,10 @@ use std::{
 
 fn main() -> std::io::Result<()> {
     let marker = PathBuf::from(env::var_os("CI_POLICY_TEST_MARKER").expect("test marker"));
+    if env::var("CI_POLICY_TEST_MODE").as_deref() == Ok("environment") {
+        fs::write(&marker, env::var("CARGO_BUILD_JOBS").unwrap())?;
+        return Ok(());
+    }
     if env::args().nth(1).as_deref() == Some("worker") {
         fs::write(&marker, "started")?;
         thread::sleep(Duration::from_secs(8));
