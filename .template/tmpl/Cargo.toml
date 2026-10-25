@@ -1,17 +1,17 @@
 [package]
-name          = "tmpl"
-version       = "0.1.0"
-edition       = "2024"
-rust-version  = "1.95.0"
-license       = "Apache-2.0 OR MIT"
-description   = "Layer-DAG template engine that drives project-template."
-repository    = "https://github.com/P4suta/project-template"
-homepage      = "https://github.com/P4suta/project-template"
-authors       = ["project-template contributors"]
-readme        = "README.md"
-keywords      = ["template", "scaffold", "dag", "layers"]
-categories    = ["development-tools", "command-line-utilities"]
-publish       = false
+name = "tmpl"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95.0"
+license = "Apache-2.0 OR MIT"
+description = "Layer-DAG template engine that drives project-template."
+repository = "https://github.com/P4suta/project-template"
+homepage = "https://github.com/P4suta/project-template"
+authors = ["project-template contributors"]
+readme = "README.md"
+keywords = ["template", "scaffold", "dag", "layers"]
+categories = ["development-tools", "command-line-utilities"]
+publish = false
 
 [[bin]]
 name = "tmpl"
@@ -22,16 +22,22 @@ name = "tmpl"
 path = "src/lib.rs"
 
 [dependencies]
-clap      = { version = "4.6", features = ["derive", "wrap_help", "env", "color", "cargo"] }
+clap = { version = "4.6", features = [
+  "derive",
+  "wrap_help",
+  "env",
+  "color",
+  "cargo",
+] }
 
-miette    = { version = "7.6", features = ["fancy"] }
+miette = { version = "7.6", features = ["fancy"] }
 thiserror = "2.0"
 
-serde      = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-toml_edit  = { version = "0.25", features = ["serde"] }
+toml_edit = { version = "0.25", features = ["serde"] }
 
-minijinja = { version = "3.0", features = ["loader", "loop_controls", "json"] }
+minijinja = { version = "3.0", features = ["serde", "loop_controls", "json"] }
 
 petgraph = "0.8"
 
@@ -48,34 +54,34 @@ jiff = { version = "0.2", default-features = false, features = ["std"] }
 which = "8.0"
 
 [dev-dependencies]
-insta             = { version = "1.47", features = ["yaml", "json", "filters", "toml"] }
-proptest          = "1.11"
+insta = { version = "1.47", features = ["yaml", "json", "filters", "toml"] }
+proptest = "1.11"
 pretty_assertions = "1.4"
-tempfile          = "3.27"
+tempfile = "3.27"
 
 [lints.rust]
-unsafe_code      = "forbid"
+unsafe_code = "forbid"
 unfulfilled_lint_expectations = "deny"
 non_ascii_idents = "deny"
 unexpected_cfgs = { level = "deny", check-cfg = ['cfg(kani)'] }
 
 missing_debug_implementations = "warn"
-missing_copy_implementations  = "warn"
-trivial_casts                 = "warn"
-trivial_numeric_casts         = "warn"
-unused_import_braces          = "warn"
-unused_lifetimes              = "warn"
-unused_qualifications         = "warn"
+missing_copy_implementations = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
 
-unreachable_pub                = "warn"
-single_use_lifetimes           = "warn"
-elided_lifetimes_in_paths      = "warn"
-redundant_lifetimes            = "warn"
+unreachable_pub = "warn"
+single_use_lifetimes = "warn"
+elided_lifetimes_in_paths = "warn"
+redundant_lifetimes = "warn"
 explicit_outlives_requirements = "warn"
 
-let_underscore_drop         = "warn"
-keyword_idents_2024         = "warn"
-variant_size_differences    = "warn"
+let_underscore_drop = "warn"
+keyword_idents_2024 = "warn"
+variant_size_differences = "warn"
 ambiguous_negative_literals = "warn"
 
 dead_code = "deny"
@@ -83,59 +89,59 @@ dead_code = "deny"
 rust_2024_compatibility = { level = "warn", priority = -1 }
 
 [lints.rustdoc]
-broken_intra_doc_links       = "deny"
-private_intra_doc_links      = "warn"
+broken_intra_doc_links = "deny"
+private_intra_doc_links = "warn"
 invalid_codeblock_attributes = "warn"
-invalid_html_tags            = "warn"
-invalid_rust_codeblocks      = "warn"
-bare_urls                    = "warn"
-redundant_explicit_links     = "warn"
-unescaped_backticks          = "warn"
+invalid_html_tags = "warn"
+invalid_rust_codeblocks = "warn"
+bare_urls = "warn"
+redundant_explicit_links = "warn"
+unescaped_backticks = "warn"
 
 [lints.clippy]
 allow_attributes = "deny"
 pedantic = { level = "warn", priority = -1 }
-nursery  = { level = "warn", priority = -1 }
-cargo    = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
 
-dbg_macro                  = "warn"
-todo                       = "warn"
-unimplemented              = "warn"
-clone_on_ref_ptr           = "warn"
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+clone_on_ref_ptr = "warn"
 unnecessary_safety_comment = "warn"
-unnecessary_safety_doc     = "warn"
-missing_assert_message     = "warn"
+unnecessary_safety_doc = "warn"
+missing_assert_message = "warn"
 
-str_to_string                   = "warn"
-absolute_paths                  = "warn"
+str_to_string = "warn"
+absolute_paths = "warn"
 allow_attributes_without_reason = "warn"
-empty_structs_with_brackets     = "warn"
-if_then_some_else_none          = "warn"
-let_underscore_must_use         = "warn"
-mixed_read_write_in_expression  = "warn"
+empty_structs_with_brackets = "warn"
+if_then_some_else_none = "warn"
+let_underscore_must_use = "warn"
+mixed_read_write_in_expression = "warn"
 rest_pat_in_fully_bound_structs = "warn"
-same_name_method                = "warn"
-semicolon_outside_block         = "warn"
-try_err                         = "warn"
-unneeded_field_pattern          = "warn"
-verbose_file_reads              = "warn"
-format_push_string              = "warn"
-unnecessary_self_imports        = "warn"
-assertions_on_result_states     = "warn"
-filetype_is_file                = "warn"
-rc_buffer                       = "warn"
-rc_mutex                        = "warn"
-lossy_float_literal             = "warn"
-suspicious_xor_used_as_pow      = "warn"
+same_name_method = "warn"
+semicolon_outside_block = "warn"
+try_err = "warn"
+unneeded_field_pattern = "warn"
+verbose_file_reads = "warn"
+format_push_string = "warn"
+unnecessary_self_imports = "warn"
+assertions_on_result_states = "warn"
+filetype_is_file = "warn"
+rc_buffer = "warn"
+rc_mutex = "warn"
+lossy_float_literal = "warn"
+suspicious_xor_used_as_pow = "warn"
 
 [profile.release]
-lto           = "thin"
+lto = "thin"
 codegen-units = 1
-strip         = "symbols"
-panic         = "abort"
-opt-level     = 3
+strip = "symbols"
+panic = "abort"
+opt-level = 3
 
 [profile.bench]
 inherits = "release"
-strip    = "none"
-debug    = 1
+strip = "none"
+debug = 1
