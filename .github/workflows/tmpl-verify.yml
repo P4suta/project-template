@@ -40,7 +40,7 @@ jobs:
           ref: ${{ inputs.source_sha || github.sha }}
       - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5
         with:
-          version: 2026.10.17
+          version: 2026.10.23
           install: false
       - run: mise install rust@1.99.1 just@1.59.0 typos@1.51.1 cargo-binstall@1.25.1
         env:
@@ -73,7 +73,7 @@ jobs:
           ref: ${{ inputs.source_sha || github.sha }}
       - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5
         with:
-          version: 2026.10.17
+          version: 2026.10.23
           install: false
       - run: mise install rust@1.99.1 just@1.59.0 cargo-binstall@1.25.1
         env:
