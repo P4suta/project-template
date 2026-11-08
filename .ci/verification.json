@@ -90,7 +90,7 @@
         "typos"
       ],
       "tools": [
-        "typos@1.51.1"
+        "typos@1.52.0"
       ],
       "timeout_seconds": 5,
       "inputs": [
