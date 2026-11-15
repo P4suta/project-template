@@ -32,14 +32,14 @@ jobs:
           ref: ${{ inputs.source_sha }}
       - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5
         with:
-          version: 2026.11.2
+          version: 2026.11.7
           install: false
-      - run: mise install rust@1.99.1 just@1.59.0 cargo:kani-verifier@0.68.0
+      - run: mise install rust@1.100.0 just@1.59.0 cargo:kani-verifier@0.68.0
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Prepare the exact native verifier
         working-directory: ${{ runner.temp }}
-        run: mise x rust@1.99.1 cargo:kani-verifier@0.68.0 -- kani setup
+        run: mise x rust@1.100.0 cargo:kani-verifier@0.68.0 -- kani setup
       - id: policy
         uses: $/.github/actions/ci-policy
       - run: mise x -- just check-candidate "$CANDIDATE_SHA" ci-policy-checks.yml::proofs

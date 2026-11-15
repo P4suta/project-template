@@ -22,7 +22,7 @@ check-staged:
     ci-policy project-check --index --phase commit
 
 fmt:
-    mise x rust@1.99.1 -- cargo fmt --manifest-path tools/ci-policy/Cargo.toml
+    mise x rust@1.100.0 -- cargo fmt --manifest-path tools/ci-policy/Cargo.toml
     mise x -- cargo fmt --manifest-path {{ ENGINE_MANIFEST }} --all
 
 test:
