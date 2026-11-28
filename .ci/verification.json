@@ -261,7 +261,7 @@
       ],
       "tools": [
         "rust@1.100.0",
-        "cargo:cargo-deny@0.20.2"
+        "cargo:cargo-deny@0.22.0"
       ],
       "timeout_seconds": 90,
       "inputs": [
