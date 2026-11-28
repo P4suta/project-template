@@ -804,7 +804,7 @@ fn public_advisory_fetches_keep_https_without_modifying_the_owners_git_policy() 
     let mut value = contract();
     value["checks"][0]["command"] = json!(["cargo", "deny", "--locked", "check", "advisories"]);
     value["checks"][0]["phase"] = json!("development");
-    value["checks"][0]["tools"] = json!(["rust@1.100.0", "cargo:cargo-deny@0.20.2"]);
+    value["checks"][0]["tools"] = json!(["rust@1.100.0", "cargo:cargo-deny@0.22.0"]);
     value["checks"][0]["environment"] = json!(["GIT_CONFIG_GLOBAL"]);
     value["checks"][0]["timeout_seconds"] = json!(60);
     repository.write(
